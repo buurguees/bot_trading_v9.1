@@ -1,0 +1,19 @@
+spot:
+  max_capital_per_trade_pct: 0.03
+  max_intraday_drawdown_pct: 0.05
+  max_trades_per_day: 30
+futures:
+  leverage_default: 3
+  max_account_risk_pct: 0.01
+  max_open_positions: 2
+circuit_breakers:
+  latency_ms: 1500
+  price_gap_pct: 0.8
+  halt_minutes_on_trigger: 15
+sizing:
+  atr_k: 1.5
+  risk_per_trade_pct: 0.006
+  min_notional_usdt: 10.0
+tp_sl:
+  atr_tp_k: 3.0
+  atr_sl_k: 1.0

@@ -1,0 +1,19 @@
+env: dev
+timezone: "Europe/Madrid"
+mode: "paper"        # paper | live
+seeds:
+  global: 1337
+logging:
+  level: "INFO"
+  json: true
+  path: "logs/app.log"
+paths:
+  data_root: "data/warehouse"
+  ohlcv_dir: "data/warehouse/ohlcv"
+  features_dir: "data/warehouse/features"
+  smc_dir: "data/warehouse/smc"
+  reports_dir: "reports"
+runtime:
+  use_redis: false
+  use_influx: false
+  use_postgres: false
