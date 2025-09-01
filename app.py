@@ -73,19 +73,20 @@ def validate_data():
 @APP.command("build-mtf")
 def build_mtf(symbol: str = "BTCUSDT", exec_tf: str = "5m"):
     """Ensambla vista MTF causal para ejecución (features+smc → features_dir)."""
-    settings = load_yaml("config/settings.yaml")
-    setup_logging(settings)
-    from core.market.data_view import build_mtf_view
+    from base_env import BaseContext, DataBroker
+    from base_env.mtf_view import build_mtf_view
+    ctx = BaseContext()
+    db = DataBroker(ctx.ohlcv_dir)
+    setup_logging(ctx.settings)
     from data_module.preprocessors.indicator_calculator import IndicatorCalculator, FeatureConfig
     import pandas as pd
 
-    paths = settings["paths"]
-    base = Path(paths["ohlcv_dir"])
+    base = Path(ctx.ohlcv_dir)
     # Carga mínimamente 1m/5m y tfs contexto; generar una vista MTF pequeña de ejemplo
     tfs = {"direction":["1d","4h"], "confirmation":["1h","15m"], "execution":[exec_tf]}
     # Reutilizamos build_mtf_view, que lee Parquet por convención
     out = build_mtf_view(symbol, base, tfs)
-    out_dir = Path(paths["features_dir"]) / f"symbol={symbol}" / f"timeframe={exec_tf}"
+    out_dir = Path(ctx.features_dir) / f"symbol={symbol}" / f"timeframe={exec_tf}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out.to_parquet(out_dir / "mtf_sample.parquet", index=False)
     logger.info({"component":"build-mtf","symbol":symbol,"exec_tf":exec_tf,"rows":len(out)})
