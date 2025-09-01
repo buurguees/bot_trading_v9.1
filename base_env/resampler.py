@@ -14,9 +14,11 @@ class Resampler:
             dst_dir = self.root / f"symbol={symbol}" / f"timeframe={to_tf}"
             dst_dir.mkdir(parents=True, exist_ok=True)
             for f in sorted(src_dir.glob("part-*.parquet")):
-                df = pl.read_parquet(f).with_columns((pl.col("timestamp") // 1000).cast(pl.Int64).alias("ts_s"))
+                df = pl.read_parquet(f).with_columns(
+                    pl.from_epoch(pl.col("timestamp") // 1000, time_unit="s").alias("datetime")
+                )
                 out = (
-                    df.group_by_dynamic(index_column="ts_s", every=_RULE[to_tf], period=_RULE[to_tf], closed="right")
+                    df.group_by_dynamic(index_column="datetime", every=_RULE[to_tf], period=_RULE[to_tf], closed="right")
                       .agg([
                         pl.first("open").alias("open"),
                         pl.max("high").alias("high"),
@@ -26,7 +28,7 @@ class Resampler:
                         pl.first("exchange").alias("exchange"),
                         pl.first("source").alias("source")
                       ])
-                      .with_columns((pl.col("ts_s") * 1000).alias("timestamp"))
-                      .drop("ts_s").sort("timestamp")
+                      .with_columns((pl.col("datetime").dt.epoch(time_unit="s") * 1000).alias("timestamp"))
+                      .drop("datetime").sort("timestamp")
                 )
                 out.write_parquet(dst_dir / f.name)
