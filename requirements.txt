@@ -1,12 +1,41 @@
+# === CLI & Utils ===
 typer==0.12.3
 loguru==0.7.2
 PyYAML==6.0.2
 
-# datos / parquet
+# === DataFrame / Columnar ===
 pandas==2.2.2
 polars==0.20.30
 pyarrow==16.1.0
+numpy==1.26.4
 
-# exchange
+# === Exchange & IO ===
 ccxt==4.3.59
 
+# === Technical Indicators (fallback puro Python) ===
+pandas-ta==0.3.14b0
+
+# === Backtesting / Reports (básico) ===
+# (Matplotlib solo si más adelante quieres gráficos locales)
+matplotlib==3.8.4
+
+# === Opcionales (INSTALAR SOLO CUANDO TOQUE TRAIN / ML) ===
+scikit-learn==1.4.2
+xgboost==2.0.3
+optuna==3.5.0
+
+# === Deep Learning (instalar manual según tu GPU/CPU/Windows) ===
+torch==2.2.2
+tensorflow==2.16.1
+
+# === TA-Lib (si tienes wheel para tu Python/Windows) ===
+TA-Lib==0.4.28
+
+# === Observabilidad (para más adelante) ===
+prometheus-client==0.20.0
+
+# === DB drivers (para más adelante) ===
+asyncpg==0.29.0
+SQLAlchemy==2.0.29
+influxdb-client==1.41.0
+redis==5.0.3
