@@ -1,1 +1,1 @@
-./data/warehouse/ohlcv
+*.parquet
