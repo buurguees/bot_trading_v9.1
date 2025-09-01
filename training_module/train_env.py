@@ -11,11 +11,11 @@ import numpy as np
 import pandas as pd
 
 # BaseEnv: rutas/paths y convenios
-from base_env.context import BaseContext
+from base_env import BaseContext
 
 # Opcional: usar RiskManager avanzado si está disponible
 try:
-    from base_env.risk_manager_advanced import RiskManager  # noqa
+    from base_env import RiskLevel, MarketRegime, RiskConfig # noqa
     _HAS_RISK = True
 except Exception:
     _HAS_RISK = False

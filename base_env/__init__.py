@@ -5,6 +5,7 @@ from .resampler import Resampler
 from .feature_engine import FeatureConfig, IndicatorCalculator
 from .smc_service import SMCConfig, SMCDetector
 from .rt_stream import RTStream
+from .risk_manager import RiskLevel, MarketRegime, RiskConfig, AdvancedRiskManager
 
 __all__ = [
     "BaseContext",
@@ -15,5 +16,9 @@ __all__ = [
     "IndicatorCalculator",
     "SMCConfig",
     "SMCDetector",
+    "RiskLevel",
+    "MarketRegime",
+    "RiskConfig",
+    "AdvancedRiskManager",
     "RTStream"
 ]

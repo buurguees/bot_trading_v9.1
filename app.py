@@ -36,7 +36,7 @@ def bootstrap_data():
 def resample():
     settings = load_yaml("config/settings.yaml")
     setup_logging(settings)
-    from base_env.resampler import Resampler
+    from base_env import Resampler
     data_cfg = load_yaml("config/data.yaml")
     r = Resampler(Path(settings["paths"]["ohlcv_dir"]))
     for sym in [s.replace("/","") for s in data_cfg["symbols"]]:
@@ -62,9 +62,7 @@ def build_features(symbol: str = "BTCUSDT", exec_tf: str = "5m"):
     """Calcula features técnicos sobre exec_tf y guarda en feature store."""
     settings = load_yaml("config/settings.yaml")
     setup_logging(settings)
-    from base_env.context import BaseContext
-    from base_env.mtf_view import build_mtf_view
-    from base_env.feature_engine import FeatureConfig, IndicatorCalculator
+    from base_env import BaseContext, build_mtf_view, FeatureConfig, IndicatorCalculator
 
     ctx = BaseContext()
     tfs = {"direction": ["1d","4h"], "confirmation": ["1h","15m"], "execution": [exec_tf]}
@@ -90,10 +88,7 @@ def build_smc(symbol: str = "BTCUSDT", exec_tf: str = "5m"):
     """Detecta SMC sobre exec_tf y guarda en feature store."""
     settings = load_yaml("config/settings.yaml")
     setup_logging(settings)
-    from base_env.context import BaseContext
-    from base_env.mtf_view import build_mtf_view
-    from base_env.feature_engine import FeatureConfig, IndicatorCalculator
-    from base_env.smc_service import SMCConfig, SMCDetector  # :contentReference[oaicite:5]{index=5}
+    from base_env import BaseContext, build_mtf_view, FeatureConfig, IndicatorCalculator, SMCConfig, SMCDetector
 
     ctx = BaseContext()
     tfs = {"direction": ["1d","4h"], "confirmation": ["1h","15m"], "execution": [exec_tf]}

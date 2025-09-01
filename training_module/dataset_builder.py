@@ -2,11 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 import pandas as pd
 
-from base_env.context import BaseContext
-from base_env.data_broker import DataBroker
-from base_env.mtf_view import build_mtf_view
-from base_env.feature_engine import FeatureConfig, IndicatorCalculator
-from base_env.smc_service import SMCConfig, SMCDetector  # :contentReference[oaicite:4]{index=4}
+from base_env import BaseContext, DataBroker, build_mtf_view, FeatureConfig, IndicatorCalculator, SMCConfig, SMCDetector
 from training_module.features.labels import triple_barrier_labels
 
 def build_training_dataset(symbol: str = "BTCUSDT", exec_tf: str = "5m",
