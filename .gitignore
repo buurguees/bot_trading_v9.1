@@ -1,6 +1,165 @@
-﻿# Ignorar archivos de datos pesados
-data/**/*.parquet
-data/**/*.csv
-data/**/*.feather
-data/**/*.duckdb
+﻿# Archivos de datos pesados
+*.parquet
+*.csv
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.json
+*.xml
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Manifest files de datos
 data/**/manifest.json
+
+# Directorios de datos
+data/
+data_warehouse/
+warehouse/
+datasets/
+raw_data/
+processed_data/
+features/
+models/
+checkpoints/
+logs/
+temp/
+tmp/
+cache/
+
+# Archivos de caché y temporales
+.pytest_cache/
+.cursor/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+bin/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+
+# Entornos virtuales
+venv/
+env/
+ENV/
+.venv/
+.env/
+
+# IDEs y editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Archivos de configuración local
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de logs
+*.log
+logs/
+log/
+
+# Archivos de base de datos
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de modelos ML
+*.joblib
+*.pkl
+*.h5
+*.onnx
+*.tflite
+*.pb
+
+# Archivos de configuración de usuario
+config/local.yaml
+config/secrets.yaml
+config/private.yaml
+
+# Archivos de trading
+*.backtest
+*.results
+*.performance
+*.metrics
+
+# Archivos de sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Archivos de Windows
+*.lnk
+
+# Archivos de macOS
+.AppleDouble
+.LSOverride
+
+# Archivos de Linux
+*~
+
+# Archivos de respaldo
+*.bak
+*.backup
+*.old
+*.orig
+*.tmp
+*.temp
+
+# Archivos de compresión
+*.gz
+*.bz2
+*.xz
+*.lzma
+
+# Archivos de imágenes (si no los necesitas)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.ico
+
+# Archivos de documentos (si no los necesitas)
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Archivos de audio/video (si no los necesitas)
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wav
+*.flac

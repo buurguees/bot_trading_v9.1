@@ -26,7 +26,7 @@ class HierarchicalConfig:
     direction_tfs: List[TF] = field(default_factory=lambda: ["1d", "4h"])
     confirm_tfs: List[TF] = field(default_factory=lambda: ["1h", "15m"])
     execute_tfs: List[TF] = field(default_factory=lambda: ["5m", "1m"])
-    min_confidence: float = 0.30
+    min_confidence: float = 0.0
     allow_fallback_open: bool = True
     allow_fallback_close: bool = True
     dedup_open_window_bars: int = 3

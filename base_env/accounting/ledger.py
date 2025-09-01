@@ -69,8 +69,11 @@ class Accounting:
         qty = float(fill["qty"])
         notional = price * qty
 
-        # fees spot
-        bps = float(self.fees_cfg.spot.taker_fee_bps) if portfolio.market == "spot" else float(self.fees_cfg.futures.taker_fee_bps)
+        # fees spot - maneja tanto objetos como diccionarios
+        if hasattr(self.fees_cfg, 'spot'):
+            bps = float(self.fees_cfg.spot["taker_fee_bps"]) if portfolio.market == "spot" else float(self.fees_cfg.futures["taker_fee_bps"])
+        else:
+            bps = float(self.fees_cfg["spot"]["taker_fee_bps"]) if portfolio.market == "spot" else float(self.fees_cfg["futures"]["taker_fee_bps"])
         fee = taker_fee(notional, bps)
 
         # actualizar posición (abre o apila en demo simple)
@@ -90,7 +93,11 @@ class Accounting:
         qty = float(fill.get("qty", pos.qty))
         notional = price * qty
 
-        bps = float(self.fees_cfg.spot.taker_fee_bps) if portfolio.market == "spot" else float(self.fees_cfg.futures.taker_fee_bps)
+        # fees - maneja tanto objetos como diccionarios
+        if hasattr(self.fees_cfg, 'spot'):
+            bps = float(self.fees_cfg.spot["taker_fee_bps"]) if portfolio.market == "spot" else float(self.fees_cfg.futures["taker_fee_bps"])
+        else:
+            bps = float(self.fees_cfg["spot"]["taker_fee_bps"]) if portfolio.market == "spot" else float(self.fees_cfg["futures"]["taker_fee_bps"])
         fee = taker_fee(notional, bps)
 
         # PnL realizado

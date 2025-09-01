@@ -31,7 +31,7 @@ class ParquetHistoricalBroker:
         ts_from: Optional[int] = None,
         ts_to: Optional[int] = None,
         stage: str = "aligned",
-        warmup_bars: int = 2000,
+        warmup_bars: int = 5000,
     ) -> None:
         self.root = Path(data_root)
         self.symbol = symbol

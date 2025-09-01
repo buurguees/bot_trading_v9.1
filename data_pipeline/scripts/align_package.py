@@ -98,7 +98,7 @@ def package_tf(root: Path, symbol: str, market: str, tf: str, ms_from: int, ms_t
     if not files:
         return None
     dataset = ds.dataset([str(f) for f in files], format="parquet", partitioning="hive")
-    filt = (ds.field("ts") >= pa.scalar(ms_from, pa.int64())) & (ds.field("ts") <= pa.scalar(ms_to, pa.int64()))
+    filt = (ds.field("ts") >= pa.scalar(ms_from, pa.int64())) & (ds.field("ts") < pa.scalar(ms_to, pa.int64()))
     table = dataset.scanner(filter=filt).to_table().sort_by("ts")
     if len(table) == 0:
         return None
