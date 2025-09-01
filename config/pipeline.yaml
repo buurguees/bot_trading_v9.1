@@ -1,0 +1,19 @@
+﻿# pipeline.yaml
+# Descripción: Indicadores técnicos y SMC a calcular por TF.
+# Ubicación: config/pipeline.yaml
+# La consume base_env/features y base_env/smc para calcular features normalizadas.
+indicators:
+  ema: [20, 50, 200]
+  rsi: [14]
+  macd: { fast: 12, slow: 26, signal: 9 }
+  atr: [14]
+  bbands: { period: 20, dev: 2.0 }
+  adx: [14]
+  obv: true
+  supertrend: { period: 10, multiplier: 3.0 }
+  stoch: { k: 14, d: 3, smooth: 3 }
+
+smc:
+  structure: { detect_bos_choch: true, swing_window: 5 }
+  zones: { order_blocks: true, fvg: true, eq_highs_lows: true }
+  context: { active_range: true, mid_range: true, imbalance: true }

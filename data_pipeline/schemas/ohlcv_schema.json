@@ -1,0 +1,23 @@
+﻿{
+    "description": "Esquema OHLCV estándar (UTC ms). Compatible con Parquet/Arrow.",
+    "columns": {
+      "ts": "int64",
+      "open": "float64",
+      "high": "float64",
+      "low": "float64",
+      "close": "float64",
+      "volume": "float64",
+      "vwap": "float64?",
+      "n_trades": "int64?",
+      "symbol": "string",
+      "market": "string",
+      "tf": "string",
+      "ingestion_ts": "int64"
+    },
+    "constraints": {
+      "ts_order": "strictly_increasing",
+      "tz": "UTC_ms",
+      "no_nulls": ["ts","open","high","low","close","volume"]
+    }
+  }
+  

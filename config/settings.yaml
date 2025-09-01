@@ -1,19 +1,10 @@
-env: dev
-timezone: "Europe/Madrid"
-mode: "paper"        # paper | live
-seeds:
-  global: 1337
-logging:
-  level: "INFO"
-  json: true
-  path: "logs/app.log"
-paths:
-  data_root: "data/warehouse"
-  ohlcv_dir: "data/warehouse/ohlcv"
-  features_dir: "data/warehouse/features"
-  smc_dir: "data/warehouse/smc"
-  reports_dir: "reports"
-runtime:
-  use_redis: false
-  use_influx: false
-  use_postgres: false
+﻿# settings.yaml
+# Descripción: Configuración global del proyecto (entorno, logs, seeds, modo).
+# Ubicación: config/settings.yaml
+# Esta información la consume el arranque de la app y los módulos que necesiten saber entorno (train/backtest/live).
+environment: dev           # dev | paper | live
+logging_level: INFO        # DEBUG | INFO | WARNING | ERROR
+seed: 42
+timezone: "UTC"
+results_dir: "runs"
+models_dir: "models"

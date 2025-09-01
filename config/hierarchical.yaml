@@ -1,0 +1,16 @@
+﻿# hierarchical.yaml
+# Descripción: Configuración del análisis jerárquico (dirección, confirmación, ejecución) y gating.
+# Ubicación: config/hierarchical.yaml
+# La consume base_env/analysis y base_env/policy (confluencias y umbrales).
+layers:
+  direction_tfs: ["1d", "4h"]
+  confirm_tfs: ["1h", "15m"]
+  execute_tfs: ["5m", "1m"]
+
+gating:
+  min_confidence: 0.30
+  allow_fallback_open: true
+  allow_fallback_close: true
+  dedup:
+    open_window_bars: 3
+    close_window_bars: 1

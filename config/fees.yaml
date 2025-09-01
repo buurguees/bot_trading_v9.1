@@ -1,0 +1,13 @@
+﻿# fees.yaml
+# Descripción: Configuración de comisiones y funding por mercado.
+# Ubicación: config/fees.yaml
+# La consume base_env/accounting (si el adapter live no provee fees/funding exactos).
+spot:
+  taker_fee_bps: 10      # 0.1% = 10 bps
+  maker_fee_bps: 8
+futures:
+  taker_fee_bps: 5
+  maker_fee_bps: 2
+  funding:
+    simulate_in_backtest: false
+    schedule_hours: 8

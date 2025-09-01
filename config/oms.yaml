@@ -1,0 +1,13 @@
+﻿# oms.yaml
+# Descripción: Configuración de OMS/adapters para sim/paper/live.
+# Ubicación: config/oms.yaml
+# La consumen los lanzadores para elegir adapter y el base_env/ (solo como referencia de modo).
+mode: train       # train | backtest | live
+adapters:
+  sim:
+    slippage_model: none     # none | fixed_bps | atr_scaled (se aplica fuera de base_env)
+    default_latency_ms: 0
+  live:
+    provider: binance-testnet
+    ws_url: ""
+    rest_url: ""

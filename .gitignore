@@ -1,1 +1,6 @@
-*.parquet
+﻿# Ignorar archivos de datos pesados
+data/**/*.parquet
+data/**/*.csv
+data/**/*.feather
+data/**/*.duckdb
+data/**/manifest.json

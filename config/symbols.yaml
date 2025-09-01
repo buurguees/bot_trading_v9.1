@@ -1,13 +1,23 @@
+﻿# symbols.yaml
+# Descripción: Lista de símbolos que trabajará el bot (spot y/o futuros) y sus filtros del exchange.
+# Ubicación: config/symbols.yaml
+# La consume base_env (filtros, tf habilitados) y los data loaders (descarga/validación de histórico).
 symbols:
-  - pair: "BTC/USDT"
-    symbol_id: "BTCUSDT"
-    min_qty: 0.0001
-    tick_size: 0.1
-    lot_step: 0.0001
-    timeframes: ["1m","5m","15m","1h","4h","1d"]
-  - pair: "ETH/USDT"
-    symbol_id: "ETHUSDT"
-    min_qty: 0.001
-    tick_size: 0.01
-    lot_step: 0.0001
-    timeframes: ["1m","5m","15m","1h","4h","1d"]
+  - symbol: BTCUSDT
+    market: spot           # spot | futures
+    enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
+    filters:
+      tickSize: 0.1
+      lotStep: 0.0001
+      minNotional: 5.0
+  - symbol: ETHUSDT
+    market: futures
+    enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
+    futures_meta:
+      contract_size: 1.0
+      max_leverage: 3
+      maintenance_margin_rate: 0.005
+    filters:
+      tickSize: 0.01
+      lotStep: 0.001
+      minNotional: 5.0

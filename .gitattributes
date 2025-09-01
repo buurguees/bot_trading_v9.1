@@ -1,0 +1,2 @@
+﻿# Asegurar LF y comportamiento binario para parquet
+*.parquet -text

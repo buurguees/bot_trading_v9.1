@@ -1,41 +1,50 @@
-# === CLI & Utils ===
-typer==0.12.3
-loguru==0.7.2
-PyYAML==6.0.2
+# ===========================================
+# CORE LIBRARIES
+# ===========================================
+numpy>=1.26
+pandas>=2.2
+pyarrow>=17.0.0        # parquet, arrow, fast I/O
+polars>=1.9.0          # alternativa más rápida a pandas para parquet
+duckdb>=1.0.0          # queries SQL sobre parquet
 
-# === DataFrame / Columnar ===
-pandas==2.2.2
-polars==0.20.30
-pyarrow==16.1.0
-numpy==1.26.4
+# ===========================================
+# DATA INGESTION & EXCHANGE
+# ===========================================
+requests>=2.32.3
+python-dateutil>=2.9.0
+ccxt>=4.3.89            # conexión unificada exchanges (Spot/Futuros)
+websocket-client>=1.8.0 # live WS feeds
 
-# === Exchange & IO ===
-ccxt==4.3.59
+# ===========================================
+# ANALYSIS & TECHNICAL INDICATORS
+# ===========================================
+ta-lib-bin>=0.4.28; platform_system != "Windows"
+TA-Lib>=0.4.28; platform_system == "Windows"
+# (En Windows puede requerir la wheel precompilada de TA-Lib)
+# alternativa si falla: finta>=1.3, o implementar indicadores a mano
 
-# === Technical Indicators (fallback puro Python) ===
-pandas-ta==0.3.14b0
+# ===========================================
+# MACHINE LEARNING / RL
+# ===========================================
+gymnasium>=0.29.1
+stable-baselines3>=2.3.2
+torch>=2.3.0
+tensorboard>=2.17.0
+scikit-learn>=1.5.1
+optuna>=3.6.1           # optimización de hiperparámetros
 
-# === Backtesting / Reports (básico) ===
-# (Matplotlib solo si más adelante quieres gráficos locales)
-matplotlib==3.8.4
+# ===========================================
+# CONFIG & UTILITIES
+# ===========================================
+PyYAML>=6.0.2
+pydantic>=2.9.2
+rich>=13.8.0
+tqdm>=4.66.5
 
-# === Opcionales (INSTALAR SOLO CUANDO TOQUE TRAIN / ML) ===
-scikit-learn==1.4.2
-xgboost==2.0.3
-optuna==3.5.0
-
-# === Deep Learning (instalar manual según tu GPU/CPU/Windows) ===
-torch==2.2.2
-tensorflow==2.16.1
-
-# === TA-Lib (si tienes wheel para tu Python/Windows) ===
-TA-Lib==0.4.28
-
-# === Observabilidad (para más adelante) ===
-prometheus-client==0.20.0
-
-# === DB drivers (para más adelante) ===
-asyncpg==0.29.0
-SQLAlchemy==2.0.29
-influxdb-client==1.41.0
-redis==5.0.3
+# ===========================================
+# TESTING & DEV
+# ===========================================
+pytest>=8.3.2
+black>=24.8.0
+ruff>=0.6.9
+mypy>=1.11.2
