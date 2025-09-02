@@ -28,6 +28,8 @@ class RewardShaper:
         self.w_time = float(w.get("time_penalty", 0.0))
         self.w_trade_cost = float(w.get("trade_cost", 0.0))
         self.w_dd = float(w.get("dd_penalty", 0.0))
+        self.w_empty_run = float(w.get("empty_run_penalty", 0.0))
+        self.w_balance_milestone = float(w.get("balance_milestone_reward", 0.0))
         self.clip_lo, self.clip_hi = cfg.get("reward_clip", [-float("inf"), float("inf")])
 
     # ---------- helpers ----------
@@ -43,7 +45,8 @@ class RewardShaper:
         return float(tiers[-1][2]) if tiers else 0.0
 
     # ---------- público ----------
-    def compute(self, obs: Dict[str, Any], base_reward: float, events: List[Dict[str, Any]]) -> Tuple[float, Dict[str, float]]:
+    def compute(self, obs: Dict[str, Any], base_reward: float, events: List[Dict[str, Any]], 
+                empty_run: bool = False, balance_milestones: int = 0) -> Tuple[float, Dict[str, float]]:
         pos = obs.get("position", {}) or {}
         portfolio = obs.get("portfolio", {}) or {}
 
@@ -58,6 +61,14 @@ class RewardShaper:
         reward += self.w_unreal * unreal_usd
         reward += self.w_time * (1.0 if in_position else 0.0)
         reward += self.w_dd * (-abs(dd_day))
+        
+        # ← NUEVO: Penalty por runs vacíos
+        if empty_run:
+            reward += self.w_empty_run
+        
+        # ← NUEVO: Rewards por milestones de balance
+        if balance_milestones > 0:
+            reward += self.w_balance_milestone * balance_milestones
 
         # Coste de apertura (si hay OPEN en este step)
         if any(e.get("kind") == "OPEN" for e in events):
@@ -98,4 +109,6 @@ class RewardShaper:
             "realized_usd": realized_usd,
             "unreal_usd": unreal_usd,
             "dd": dd_day,
+            "empty_run_penalty": self.w_empty_run if empty_run else 0.0,
+            "balance_milestone_reward": self.w_balance_milestone * balance_milestones,
         }

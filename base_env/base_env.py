@@ -79,6 +79,17 @@ class BaseTradingEnv:
         self._leverage_index = None  # índice de leverage en action space
         self._bankruptcy_detected = False  # flag de quiebra detectada
         self._trades_executed = 0  # contador de trades ejecutados
+        
+        # ← NUEVO: Control de runs vacíos para learning rate reset
+        self._empty_runs_count = 0  # contador de runs vacíos consecutivos
+        self._max_empty_runs = 30  # ← NUEVO: Umbral más bajo para activación más temprana
+        
+        # ← NUEVO: Control de milestones de balance
+        self._last_balance_milestone = 0  # último milestone alcanzado (en centenas)
+        self._balance_milestones_this_run = 0  # milestones alcanzados en este run  # ← NUEVO: Sincronizado con el callback
+        self._learning_rate_reset_needed = False  # flag para reset
+        # ← NUEVO: Verbosidad para logs de milestones (por defecto desactivado)
+        self._milestones_verbose = False
 
     # ------------- API pública -------------
     def reset(self):
@@ -87,6 +98,10 @@ class BaseTradingEnv:
         self._done = False
         self._bankruptcy_detected = False  # reset flag de quiebra
         self._trades_executed = 0  # reset contador de trades
+        
+        # ← NUEVO: Reset del contador de runs vacíos
+        self._empty_runs_count = 0
+        self._learning_rate_reset_needed = False
         # inicio de run
         obs = self._build_observation()
         self._run_logger.start(
@@ -106,6 +121,15 @@ class BaseTradingEnv:
         self._action_override = action
         self._leverage_override = leverage_override
         self._leverage_index = leverage_index
+
+    def needs_learning_rate_reset(self) -> bool:
+        """← NUEVO: Verifica si se necesita reset del learning rate por runs vacíos"""
+        return self._learning_rate_reset_needed
+
+    def reset_learning_rate_flag(self):
+        """← NUEVO: Resetea el flag de learning rate reset"""
+        self._learning_rate_reset_needed = False
+        self._empty_runs_count = 0
 
     def step(self):
         if self._done:
@@ -305,11 +329,32 @@ class BaseTradingEnv:
         # ← NUEVO: incrementar barras que estuvo abierta la posición
         if self.pos.side != 0 and self.pos.open_ts is not None:
             self.pos.bars_held += 1
+        
+        # ← NUEVO: Calcular milestones de balance (cada +100 que supere 0)
+        current_balance = self.portfolio.equity_quote
+        # Evitar spam de milestones al iniciar (considerar init_cash como baseline)
+        baseline = max(0.0, self._init_cash)
+        if current_balance > baseline:
+            current_milestone = int((current_balance - baseline) // 100)  # Milestone desde baseline
+            if current_milestone > self._last_balance_milestone:
+                new_milestones = current_milestone - self._last_balance_milestone
+                self._balance_milestones_this_run += max(0, new_milestones)
+                self._last_balance_milestone = current_milestone
+                # Mensaje menos frecuente y más claro
+                if new_milestones > 0 and self._milestones_verbose:
+                    print(f"🎯 Milestone: equity {baseline + current_milestone * 100:.0f} USDT (+{new_milestones})")
+        else:
+            # Si el balance cae por debajo del baseline, resetear milestones
+            self._last_balance_milestone = 0
 
         # 8) Siguiente observación y eventos
         next_obs = self._build_observation()
         events = self.events_bus.drain()
-        info = {"events": events}
+        info = {
+            "events": events,
+            "balance_milestones": self._balance_milestones_this_run,
+            "current_balance": current_balance
+        }
 
         # Señal de fin de histórico (cuando no avanza ts)
         done = (next_obs["ts"] == obs["ts"])
@@ -328,9 +373,22 @@ class BaseTradingEnv:
                     final_equity=self.portfolio.equity_quote,
                     ts_end=int(next_obs["ts"])
                 )
+                # ← NUEVO: Reset contador de runs vacíos al tener actividad
+                self._empty_runs_count = 0
+                # ← NUEVO: Reset milestones de balance al final del run
+                self._balance_milestones_this_run = 0
             else:
-                # No loguear runs vacíos - solo resetear para siguiente episodio
-                print(f"🔄 Episodio sin actividad real - no logueando run vacío")
+                # ← NUEVO: Incrementar contador de runs vacíos
+                self._empty_runs_count += 1
+                print(f"🔄 Episodio sin actividad real - no logueando run vacío ({self._empty_runs_count}/{self._max_empty_runs})")
+                # ← NUEVO: Reset milestones de balance en runs vacíos
+                self._balance_milestones_this_run = 0
+                
+                # ← NUEVO: Activar reset de learning rate si se alcanza el umbral
+                if self._empty_runs_count >= self._max_empty_runs:
+                    self._learning_rate_reset_needed = True
+                    print(f"🚨 {self._max_empty_runs} runs vacíos consecutivos - ACTIVANDO LEARNING RATE RESET")
+                    print(f"   El agente necesita explorar nuevas estrategias")
         
         self._done = done
         return next_obs, reward, done, info

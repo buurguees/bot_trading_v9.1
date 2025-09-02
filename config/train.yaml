@@ -16,7 +16,10 @@ env:
   n_envs: 4
   episode_length: 1825  # 5 años en días
   max_steps_per_episode: 1825000  # 5 años * 1000 steps/día
-  warmup_bars: 5000
+  warmup_bars: 2000
+  startup_cooldown_steps: 0  # desactiva cooldown de arranque
+  antifreeze:
+    enabled: false           # desactiva curriculum/antifreeze
   reward_yaml: "config/rewards.yaml"
   chronological: true
   initial_balance: 1000.0
@@ -30,22 +33,34 @@ ppo:
   gamma: 0.999               # ✅ Descuento alto para largo plazo
   gae_lambda: 0.95           # ✅ GAE estable
   clip_range: 0.2            # ✅ Clipping estándar
-  ent_coef: 0.01             # ✅ ENTROPÍA ACTIVADA para exploración
+  ent_coef: 0.1              # ✅ ENTROPÍA AUMENTADA para más exploración
   vf_coef: 0.5               # ✅ Valor function
   n_epochs: 4                # ✅ Epochs estándar
   tensorboard_log: "logs/tb"
   
-  # ← NUEVO: Parámetros anti-congelamiento
+  # ← NUEVO: Parámetros anti-congelamiento mejorados
   max_grad_norm: 0.5         # ✅ Previene gradientes explosivos
   target_kl: 0.01            # ✅ Early stopping si KL diverge
   anneal_lr: true            # ✅ Learning rate annealing
   lr_schedule: "linear"      # ✅ Schedule lineal para 50M steps
+  
+  # ← NUEVO: Parámetros adicionales para evitar bloqueo
+  policy_kwargs:
+    net_arch: [256, 256]     # ✅ Red más grande para mayor capacidad
+    activation_fn: "tanh"    # ✅ Función de activación estable
+
+  # ← NUEVO: Control del reset de learning rate (cooldown del callback)
+  lr_reset:
+    enabled: false           # desactiva el callback de reset de LR (sin mensajes de cooldown)
+    threshold_runs: 30       # umbral si se activa
+    cooldown_steps: 5000     # cooldown si se activa
 
 # Ruta y política de modelos/estrategias por símbolo
 models:
   root: "models"          # ⇒ models/{symbol}/...
-  overwrite: true         # si existe el zip, reanudar y sobrescribir
+  overwrite: false        # ← NUEVO: NO sobrescribir automáticamente para evitar pérdida de progreso
   save_every_steps: 1000000  # ← NUEVO: guardar modelo cada 1M steps para 50M total
+  backup_every_steps: 5000000  # ← NUEVO: backup cada 5M steps
 
 logging:
   run_dir: "logs/runs"    # logs de balance/equity por run

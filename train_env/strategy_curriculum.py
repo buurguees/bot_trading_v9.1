@@ -112,13 +112,20 @@ class StrategyCurriculum:
         
         return hints
     
-    def suggest_action_modification(self, current_action: int, obs: Dict[str, Any]) -> Optional[int]:
+    def suggest_action_modification(self, current_action: int, obs: Dict[str, Any], bad_strategies: List[Dict[str, Any]] = None) -> Optional[int]:
         """
         Sugiere modificaciones a la acción actual basándose en estrategias exitosas
-        Implementa "imitation learning" suave
+        Implementa "imitation learning" suave + "avoidance learning"
         """
         if not self.strategies or random.random() > 0.1:  # Solo 10% de las veces
             return None
+            
+        # ← NUEVO: Verificar si la acción actual es similar a una estrategia mala
+        if bad_strategies and self._is_action_similar_to_bad_strategy(current_action, bad_strategies):
+            if self.verbose:
+                print(f"[CURRICULUM] ⚠️ Acción {current_action} similar a estrategia mala - SUGIRIENDO ALTERNATIVA")
+            # Forzar sugerencia de alternativa
+            return self._suggest_alternative_action(current_action, obs)
             
         # Buscar estrategia similar en el contexto actual
         similar_strategy = self._find_similar_strategy(obs)
@@ -162,6 +169,52 @@ class StrategyCurriculum:
             return 0  # Sugerir HOLD
             
         return None
+    
+    def _is_action_similar_to_bad_strategy(self, action: int, bad_strategies: List[Dict[str, Any]]) -> bool:
+        """
+        Verifica si una acción es similar a una estrategia mala
+        Retorna True si debe EVITARSE
+        """
+        if not bad_strategies:
+            return False
+            
+        # Buscar estrategias muy malas (ROI < -20%)
+        very_bad = [s for s in bad_strategies if s.get("roi_pct", 0) < -20.0]
+        if not very_bad:
+            return False
+            
+        # Si la acción actual es similar a una estrategia muy mala, evitarla
+        for bad_strat in very_bad[:10]:  # Solo revisar las 10 peores
+            if self._is_action_similar_to_bad_strategy_single(action, bad_strat):
+                return True
+                
+        return False
+    
+    def _is_action_similar_to_bad_strategy_single(self, action: int, bad_strategy: Dict[str, Any]) -> bool:
+        """
+        Verifica si una acción es similar a una estrategia mala específica
+        """
+        # Si la estrategia mala fue LONG y la acción actual es LONG, podría ser similar
+        if action == 1 and bad_strategy.get("side", 0) == 1:  # LONG
+            return True
+        elif action == 2 and bad_strategy.get("side", 0) == -1:  # SHORT
+            return True
+            
+        return False
+    
+    def _suggest_alternative_action(self, current_action: int, obs: Dict[str, Any]) -> Optional[int]:
+        """
+        Sugiere una acción alternativa cuando la actual es similar a una estrategia mala
+        """
+        if current_action == 1:  # Si era LONG, sugerir HOLD o SHORT
+            alternatives = [0, 2]  # HOLD, SHORT
+        elif current_action == 2:  # Si era SHORT, sugerir HOLD o LONG
+            alternatives = [0, 1]  # HOLD, LONG
+        else:  # Si era HOLD, sugerir LONG o SHORT
+            alternatives = [1, 2]  # LONG, SHORT
+            
+        # Seleccionar aleatoriamente una alternativa
+        return random.choice(alternatives)
     
     def get_curriculum_stats(self) -> Dict[str, Any]:
         """Devuelve estadísticas del curriculum para monitoreo"""

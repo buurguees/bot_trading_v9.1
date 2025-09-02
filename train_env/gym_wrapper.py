@@ -2,6 +2,9 @@
 from __future__ import annotations
 import gymnasium as gym
 import numpy as np
+import random
+import json
+from pathlib import Path
 from typing import Dict, Any, Tuple, List, Optional
 from base_env.base_env import BaseTradingEnv
 from .reward_shaper import RewardShaper
@@ -95,6 +98,23 @@ class TradingGymWrapper(gym.Env):
             lev_idx = int(action[1])
             leverage = self._lev_from_idx(lev_idx)
 
+        # ← NUEVO: Curriculum learning - sugerir modificaciones basadas en estrategias exitosas
+        if self.curriculum and random.random() < 0.05:  # 5% de las veces
+            # Intentar cargar estrategias malas para evitarlas
+            bad_strategies = []
+            try:
+                bad_strat_file = self.strategy_log_path.replace("_provisional.jsonl", "_bad_strategies.json")
+                if Path(bad_strat_file).exists():
+                    with open(bad_strat_file, 'r') as f:
+                        bad_strategies = json.load(f)
+            except:
+                pass
+                
+            suggested_action = self.curriculum.suggest_action_modification(trade_action, {}, bad_strategies)
+            if suggested_action is not None:
+                trade_action = suggested_action
+                print(f"[CURRICULUM] Acción modificada: {action} → {trade_action}")
+
         # inyecta la acción y el leverage (si aplica)
         self.env.set_action_override(int(trade_action), leverage_override=leverage, leverage_index=lev_idx if self._lev_spec else None)
 
@@ -102,5 +122,18 @@ class TradingGymWrapper(gym.Env):
         evs = info.get("events", [])
         if evs:
             self.strategy_log.append_many(evs)
-        shaped, parts = self.shaper.compute(obs, base_r, evs)
+        
+        # ← NUEVO: Obtener información de milestones y runs vacíos
+        balance_milestones = info.get("balance_milestones", 0)
+        empty_run = self.env._empty_runs_count > 0 and not evs and not done
+        
+        shaped, parts = self.shaper.compute(obs, base_r, evs, empty_run, balance_milestones)
         return self._flatten_obs(obs), float(shaped), bool(done), False, {"r_parts": parts, **info}
+
+    def needs_learning_rate_reset(self) -> bool:
+        """← NUEVO: Expone el método del entorno base para SubprocVecEnv"""
+        return self.env.needs_learning_rate_reset()
+
+    def reset_learning_rate_flag(self):
+        """← NUEVO: Expone el método del entorno base para SubprocVecEnv"""
+        self.env.reset_learning_rate_flag()
