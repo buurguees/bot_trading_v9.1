@@ -4,20 +4,28 @@
 # La consume base_env (filtros, tf habilitados) y los data loaders (descarga/validación de histórico).
 symbols:
   - symbol: BTCUSDT
-    market: spot           # spot | futures
+    mode: train_spot
     enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
+    leverage:
+      min: 2.0       # mínimo permitido por YAML
+      max: 25.0      # máximo permitido por YAML
+      step: 1.0      # granularidad (1x -> niveles enteros). Cambia aquí sin tocar .py
+      default: 5.0   # valor de arranque (sólo inicial; luego el agente decide)
     filters:
       tickSize: 0.1
       lotStep: 0.0001
       minNotional: 5.0
-  - symbol: ETHUSDT
-    market: futures
-    enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
-    futures_meta:
-      contract_size: 1.0
-      max_leverage: 3
-      maintenance_margin_rate: 0.005
-    filters:
-      tickSize: 0.01
-      lotStep: 0.001
-      minNotional: 5.0
+
+# - name: ETHUSDT
+#    mode: train_futures
+#    enabled: true
+#    enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
+#    leverage:
+#      min: 2.0       # mínimo permitido por YAML
+#      max: 25.0      # máximo permitido por YAML
+#      step: 1.0      # granularidad (1x -> niveles enteros). Cambia aquí sin tocar .py
+#      default: 5.0   # valor de arranque (sólo inicial; luego el agente decide)
+#    filters:
+#      tickSize: 0.01
+#      lotStep: 0.001
+#      minNotional: 5.0

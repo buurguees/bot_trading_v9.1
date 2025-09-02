@@ -1,0 +1,52 @@
+seed: 42
+log_dir: "logs/ppo_v1"
+
+data:
+  root: "data"
+  symbols:
+    - name: "BTCUSDT"
+      mode: "train_spot"     # opciones: train_spot | train_futures | backtest | live_spot | live_futures
+      leverage: 1.0          # para spot (siempre 1.0x)
+  market: "spot"             # default global si no se define por símbolo
+  stage: "aligned"
+  tfs: ["1m","5m","15m","1h"]
+  months_back: 60
+
+env:
+  n_envs: 4
+  episode_length: 1825  # 5 años en días
+  max_steps_per_episode: 1825000  # 5 años * 1000 steps/día
+  warmup_bars: 5000
+  reward_yaml: "config/rewards.yaml"
+  chronological: true
+  initial_balance: 1000.0
+  target_balance: 1000000.0
+
+ppo:
+  total_timesteps: 50000000  # ← NUEVO: 50M steps para entrenamiento largo
+  n_steps: 2048
+  batch_size: 8192
+  learning_rate: 3.0e-4      # ✅ Learning rate óptimo
+  gamma: 0.999               # ✅ Descuento alto para largo plazo
+  gae_lambda: 0.95           # ✅ GAE estable
+  clip_range: 0.2            # ✅ Clipping estándar
+  ent_coef: 0.01             # ✅ ENTROPÍA ACTIVADA para exploración
+  vf_coef: 0.5               # ✅ Valor function
+  n_epochs: 4                # ✅ Epochs estándar
+  tensorboard_log: "logs/tb"
+  
+  # ← NUEVO: Parámetros anti-congelamiento
+  max_grad_norm: 0.5         # ✅ Previene gradientes explosivos
+  target_kl: 0.01            # ✅ Early stopping si KL diverge
+  anneal_lr: true            # ✅ Learning rate annealing
+  lr_schedule: "linear"      # ✅ Schedule lineal para 50M steps
+
+# Ruta y política de modelos/estrategias por símbolo
+models:
+  root: "models"          # ⇒ models/{symbol}/...
+  overwrite: true         # si existe el zip, reanudar y sobrescribir
+  save_every_steps: 1000000  # ← NUEVO: guardar modelo cada 1M steps para 50M total
+
+logging:
+  run_dir: "logs/runs"    # logs de balance/equity por run
+  checkpoint_every_steps: 500000  # ← NUEVO: checkpoints cada 500k steps para 50M total

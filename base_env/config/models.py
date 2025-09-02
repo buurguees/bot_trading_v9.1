@@ -80,6 +80,7 @@ class SymbolMeta:
 class EnvConfig:
     mode: Literal["train", "backtest", "live"] = "train"
     market: MarketType = "spot"
+    leverage: float = 1.0    # si futures, rango 2.0–25.0
     symbol_meta: SymbolMeta = field(default_factory=SymbolMeta)
     tfs: List[TF] = field(default_factory=lambda: ["1m", "5m", "15m", "1h", "4h", "1d"])
 

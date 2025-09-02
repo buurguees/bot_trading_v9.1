@@ -1,16 +1,22 @@
-﻿# risk.yaml
+﻿# config/risk.yaml
 # Descripción: Parámetros de gestión de riesgo autónoma (comunes, spot y futuros).
-# Ubicación: config/risk.yaml
-# La consume base_env/risk para sizing, exposición, apalancamiento y circuit breakers.
+# La consume base_env/risk para sizing, exposición, apalancamiento, circuit breakers y quiebras.
+
 common:
-  daily_max_drawdown_pct: 5.0
-  exposure_max_abs: 1.0           # 1.0 = 100% del equity (spot). En futuros se interpreta con margen.
+  daily_max_drawdown_pct: 5.0        # Máx. DD diario antes de activar circuit breaker
+  exposure_max_abs: 1.0              # 1.0 = 100% del equity (spot). En futuros se interpreta con margen.
   circuit_breakers:
     data_quality_pause: true
     inconsistent_signals_pause: true
 
+  bankruptcy:
+    enabled: true
+    threshold_pct: 5.0               # ✅ Equity ≤ 5% del balance inicial = quiebra (-95%)
+    penalty_reward: -2.0             # ✅ Penalización más suave para permitir aprendizaje
+    restart_on_bankruptcy: true      # Reinicia cronológicamente desde el inicio del histórico
+
 spot:
-  risk_pct_per_trade: 0.5         # % del equity_quote en riesgo por operación
+  risk_pct_per_trade: 0.5            # % del equity_quote en riesgo por operación
   trailing:
     enabled: true
     atr_multiple: 1.0

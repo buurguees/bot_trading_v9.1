@@ -18,6 +18,10 @@ class SizedDecision:
     should_close_partial: bool
     should_close_all: bool
     close_qty: float
+    # ← NUEVO: información de leverage para futuros
+    leverage_used: Optional[float] = None
+    notional_effective: Optional[float] = None
+    notional_max: Optional[float] = None
 
 
 class RiskManager:
@@ -61,11 +65,82 @@ class RiskManager:
                 return SizedDecision(True, decision.side, qty, decision.price_hint, decision.sl, decision.tp, False, False, 0.0)
 
             else:
-                # TODO: Futuros (apalancamiento ≤ 3x)
-                return SizedDecision(False, 0, 0.0, decision.price_hint, decision.sl, decision.tp, False, False, 0.0)
+                # Futuros con apalancamiento dinámico
+                # Obtener leverage desde la configuración del entorno
+                leverage = getattr(portfolio, 'leverage', 1.0)
+                if leverage <= 1.0:
+                    leverage = 1.0  # Fallback a sin apalancamiento
+                
+                return self.size_futures(
+                    portfolio=portfolio,
+                    decision=decision,
+                    leverage=leverage,
+                    account_equity=portfolio.equity_quote
+                )
 
         # Default
         return SizedDecision(False, 0, 0.0, decision.price_hint, decision.sl, decision.tp, False, False, 0.0)
+
+    def size_futures(self, portfolio, decision, leverage: float, account_equity: float):
+        """Sizing en futuros: limita notional por equity*leverage y riesgo por SL."""
+        from dataclasses import dataclass
+        @dataclass
+        class _Sized:
+            should_open: bool = True
+            side: int = 0
+            qty: float = 0.0
+            price_hint: float = 0.0
+            sl: float | None = None
+            tp: float | None = None
+            should_close_all: bool = False
+            should_close_partial: bool = False
+            close_qty: float = 0.0
+            # ← NUEVO: campos específicos para futuros
+            leverage_used: float | None = None
+            notional_effective: float | None = None
+            notional_max: float | None = None
+        if decision is None or not decision.should_open:
+            return _Sized(should_open=False)
+
+        price = float(decision.price_hint)
+        risk_pct = float(getattr(self.cfg, "risk_per_trade_pct", 0.01))
+        notional_cap = float(account_equity) * float(leverage)
+        risk_cash = float(account_equity) * risk_pct
+
+        stop_dist = abs(price - float(decision.sl)) if decision.sl else price * 0.01
+        qty = risk_cash / max(stop_dist, 1e-9)
+        # no exceder notional máximo
+        if qty * price > notional_cap:
+            qty = notional_cap / price
+
+        return _Sized(
+            side=decision.side, 
+            qty=max(qty, 0.0), 
+            price_hint=price, 
+            sl=decision.sl, 
+            tp=decision.tp,
+            leverage_used=leverage,
+            notional_effective=qty * price,
+            notional_max=notional_cap
+        )
+
+    def check_bankruptcy(self, portfolio, initial_balance: float, events_bus, ts_now: int) -> bool:
+        """
+        Verifica si el portfolio ha entrado en quiebra.
+        Quiebra = equity <= initial_balance * threshold_pct
+        """
+        threshold_pct = float(getattr(self.cfg.common, "bankruptcy", {}).get("threshold_pct", 20.0)) / 100.0
+        bankruptcy_threshold = initial_balance * threshold_pct
+        
+        if portfolio.equity_quote <= bankruptcy_threshold:
+            # Emitir evento de quiebra
+            events_bus.emit("BANKRUPTCY", ts=ts_now, 
+                           initial_balance=initial_balance,
+                           current_equity=portfolio.equity_quote,
+                           threshold_pct=threshold_pct * 100.0,
+                           drawdown_pct=((portfolio.equity_quote - initial_balance) / initial_balance) * 100.0)
+            return True
+        return False
 
     def maintenance(self, portfolio, position, broker, events_bus, obs, exec_tf: str, ts_now: int):
         """

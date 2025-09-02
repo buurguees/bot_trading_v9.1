@@ -8,6 +8,13 @@ Su misión es construir la observación de mercado multi-timeframe, analizar se�
 > - En `train` y `backtest` lo aplica el wrapper/adapter.  
 > - En `live` llega del exchange.
 
+### 🆕 **Nuevas Funcionalidades (v9.1.1)**
+- **Sistema de Logging Completo**: `RunLogger` para tracking de runs completos
+- **Gestión de Balances Configurable**: `initial_cash` y `target_cash` configurables
+- **Eventos Ultra-Enriquecidos**: Métricas avanzadas en OPEN y CLOSE
+- **Tracking de Equity**: Monitoreo de balances y objetivos financieros
+- **Logging de Inicio/Fin de Run**: Registro completo de performance
+
 ---
 
 ## 1) Alcance (qué hace)
@@ -97,7 +104,79 @@ Su misión es construir la observación de mercado multi-timeframe, analizar se�
 
 ---
 
-## 8) Gestión de riesgo autónoma
+## 8) Sistema de Logging y Eventos Enriquecidos
+
+### 🆕 **RunLogger - Tracking Completo de Runs**
+```python
+def __init__(self, initial_cash: float = 10000.0, target_cash: float = 1_000_000.0, run_log_dir: str = "logs/runs"):
+    self._init_cash = float(initial_cash)
+    self._target_cash = float(target_cash)
+    self._run_logger = RunLogger(run_log_dir)
+```
+
+**Funcionalidades:**
+- **Logging de Inicio**: Registra símbolo, mercado, balances iniciales y timestamp
+- **Logging de Fin**: Registra balances finales y timestamp de cierre
+- **Archivos JSONL**: Un archivo por run con métricas completas
+- **Directorio Configurable**: `logs/runs/` por defecto
+
+### 🎯 **Eventos OPEN Enriquecidos**
+```python
+self.events_bus.emit(
+    "OPEN", ts=ts_now, side=("LONG" if sized.side > 0 else "SHORT"),
+    qty=self.pos.qty, price=self.pos.entry_price, sl=self.pos.sl, tp=self.pos.tp,
+    risk_pct=risk_pct, analysis=obs.get("analysis", {}), indicators=list(feats_exec.keys()),
+    used_tfs=used_tfs
+)
+```
+
+**Métricas incluidas:**
+- `risk_pct`: Porcentaje de riesgo basado en distancia SL
+- `analysis`: Análisis completo de la observación
+- `indicators`: Lista de indicadores disponibles
+- `used_tfs`: Timeframes utilizados (direction, confirm, execute)
+
+### 📊 **Eventos CLOSE Ultra-Enriquecidos**
+```python
+self.events_bus.emit(
+    "CLOSE", ts=ts_now, qty=qty_close, price=exit_price,
+    realized_pnl=realized, entry_price=entry, entry_qty=qty_now,
+    roi_pct=roi_pct, r_multiple=r_multiple, risk_pct=risk_pct,
+    reason=("PARTIAL" if sized.should_close_partial else "ALL")
+)
+```
+
+**Métricas calculadas:**
+- `roi_pct`: Porcentaje de retorno sobre el notional
+- `r_multiple`: Ratio entre PnL realizado y riesgo inicial
+- `risk_pct`: Porcentaje de riesgo inicial del trade
+- `realized_pnl`: PnL realizado en USD
+- `entry_price/entry_qty`: Precio y cantidad de entrada
+- `reason`: Razón del cierre (PARTIAL, ALL, AUTO_PARTIAL, AUTO_ALL)
+
+### 🔧 **Gestión de Balances Configurable**
+```python
+def reset(self):
+    self.portfolio.reset(initial_cash=self._init_cash, target_cash=self._target_cash)
+    # ... logging de inicio
+    self._run_logger.start(
+        symbol=self.cfg.symbol_meta.symbol,
+        market=self.cfg.market,
+        initial_balance=self.portfolio.cash_quote,
+        target_balance=self.portfolio.target_quote,
+        initial_equity=self.portfolio.equity_quote,
+        ts_start=int(obs["ts"])
+    )
+```
+
+**Parámetros configurables:**
+- `initial_cash`: Balance inicial para entrenamiento/backtest
+- `target_cash`: Balance objetivo para tracking de performance
+- **Tracking automático**: Equity, balances y objetivos financieros
+
+---
+
+## 9) Gestión de riesgo autónoma
 
 ### Común
 - **Riesgo por trade** (dinámico): depende de volatilidad (ATR), liquidez y DD.  
@@ -118,6 +197,80 @@ Su misión es construir la observación de mercado multi-timeframe, analizar se�
 - `notional = qty * entry`  
 - `margin_used = notional / leverage`  
 - Verificar **margen mantenimiento** y límites de riesgo antes de abrir.
+
+---
+
+## 10) 🆕 **Tracking Temporal y Análisis de Timeframes (v9.1.2)**
+
+### **🎯 Tracking Temporal de Posiciones**
+```python
+@dataclass
+class PositionState:
+    # ... campos existentes ...
+    open_ts: Optional[int] = None      # Timestamp de apertura
+    bars_held: int = 0                 # Barras que estuvo realmente abierta
+```
+
+**Funcionalidades:**
+- **`open_ts`**: Registra timestamp exacto de apertura
+- **`bars_held`**: Incrementa automáticamente en cada step
+- **Duración real**: Calculada como `ts_close - open_ts`
+- **Barras reales**: Contador de barras vs TTL configurado
+
+### **📊 Eventos CLOSE Ultra-Enriquecidos con Temporal**
+```python
+self.events_bus.emit(
+    "CLOSE", 
+    # ... campos existentes ...
+    # ← NUEVO: información temporal completa
+    "open_ts": self.pos.open_ts,           # Timestamp de apertura
+    "duration_ms": ts_now - self.pos.open_ts,  # Duración en milisegundos
+    "bars_held": self.pos.bars_held,       # Barras que estuvo abierta
+    "exec_tf": exec_tf                     # Timeframe de ejecución
+)
+```
+
+**Nuevas métricas:**
+- **`open_ts`**: Timestamp de apertura para correlación OPEN-CLOSE
+- **`duration_ms`**: Duración real en milisegundos
+- **`bars_held`**: Número de barras que realmente estuvo abierta
+- **`exec_tf`**: Timeframe específico donde se ejecutó la estrategia
+
+### **🏆 Scoring Inteligente por Timeframes y Duración**
+```python
+def _score_row(e: Dict[str, Any]) -> float:
+    # ... scoring base ...
+    
+    # Bonus por timeframes preferidos (1m, 5m, 15m, 1h)
+    exec_tf = e.get("exec_tf", "")
+    if exec_tf in ["1m", "5m", "15m", "1h"]:
+        tf_bonus = 3.0  # Bonus fuerte por timeframes preferidos
+    elif exec_tf in ["4h", "1d"]:
+        tf_penalty = -2.0  # Penalización por timeframes largos
+    
+    # Bonus por duración moderada (5-50 barras)
+    bars_held = e.get("bars_held", 0)
+    if 5 <= bars_held <= 50:
+        duration_bonus = 2.0  # Rango óptimo
+    elif bars_held < 3:
+        duration_penalty = -1.0  # Muy cortas
+    elif bars_held > 100:
+        duration_penalty = -1.5  # Muy largas
+```
+
+**Criterios de Scoring:**
+- **Timeframes preferidos**: 1m, 5m, 15m, 1h → **+3.0 bonus**
+- **Timeframes evitados**: 4h, 1d → **-2.0 penalización**
+- **Duración óptima**: 5-50 barras → **+2.0 bonus**
+- **Duración corta**: <3 barras → **-1.0 penalización**
+- **Duración larga**: >100 barras → **-1.5 penalización**
+
+### **📈 Beneficios del Tracking Temporal**
+1. **Análisis de Duración**: Comparar TTL configurado vs duración real
+2. **Optimización de Timeframes**: Identificar qué TFs generan mejores resultados
+3. **Estrategias Eficientes**: Favorecer estrategias de duración moderada
+4. **Correlación OPEN-CLOSE**: Análisis completo de entrada a salida
+5. **Backtesting Avanzado**: Métricas temporales para optimización
 
 ### TP/SL & Trailing
 - **SL**: `entry ± k_sl * ATR(tf_exec)` ajustado a OB/FVG/liquidez.  
@@ -146,14 +299,78 @@ Su misión es construir la observación de mercado multi-timeframe, analizar se�
 
 ---
 
-## 10) KPIs y métricas
+## 10) Uso del Sistema Mejorado
+
+### 🆕 **Inicialización con Nuevos Parámetros**
+```python
+# Configuración básica
+env = BaseTradingEnv(
+    cfg=config,
+    broker=broker,
+    oms=oms,
+    initial_cash=10000.0,      # Balance inicial
+    target_cash=1000000.0,     # Balance objetivo
+    run_log_dir="logs/runs"    # Directorio de logs
+)
+```
+
+### 📊 **Acceso a Eventos Enriquecidos**
+```python
+obs, reward, done, info = env.step()
+
+# Eventos disponibles en info["events"]
+for event in info["events"]:
+    if event["kind"] == "OPEN":
+        print(f"Abrió {event['side']} con {event['risk_pct']:.2f}% riesgo")
+        print(f"Indicadores: {event['indicators']}")
+        print(f"Timeframes: {event['used_tfs']}")
+    
+    elif event["kind"] == "CLOSE":
+        print(f"Cerró con {event['roi_pct']:.2f}% ROI")
+        print(f"R-multiple: {event['r_multiple']:.2f}")
+        print(f"Razón: {event['reason']}")
+```
+
+### 📈 **Monitoreo de Performance**
+```python
+# Los logs se guardan automáticamente en logs/runs/
+# Cada run genera un archivo JSONL con métricas completas
+# Formato: run_{timestamp}.jsonl
+
+# Contenido del log:
+{
+    "symbol": "BTCUSDT",
+    "market": "spot",
+    "initial_balance": 10000.0,
+    "target_balance": 1000000.0,
+    "initial_equity": 10000.0,
+    "ts_start": 1640995200,
+    "ts_end": 1641081600,
+    "final_balance": 10500.0,
+    "final_equity": 10500.0
+}
+```
+
+### 🎯 **Integración con RewardShaper**
+```python
+# Los eventos enriquecidos se pueden usar directamente en el RewardShaper
+# El RewardShaper recibe automáticamente:
+# - roi_pct: Para cálculo de tiers
+# - r_multiple: Para refuerzos de calidad
+# - risk_pct: Para eficiencia de riesgo
+# - realized_pnl: Para rewards base
+```
+
+---
+
+## 11) KPIs y métricas
 - **Por step**: exposición, PnL UR, equity, drawdown, confidence, latencia/datos.  
 - **Por trade**: R múltiplo, holding time, heat (tiempo en pérdida), eficiencia (MFE/MAE), fees netas.  
 - **Por sesión**: PnL total, Sharpe/Sortino/Calmar, win-rate, profit factor, maxDD, exposición/lev. promedio.
 
 ---
 
-## 11) Documentos relacionados
+## 12) Documentos relacionados
 - `SPEC.md`: versión extendida de esta especificación.  
 - `SCHEMAS.md`: definición de obs/action/eventos.  
 - `TEST_PLAN.md`: plan de pruebas unitarias/funcionales.  

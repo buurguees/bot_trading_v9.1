@@ -1,0 +1,43 @@
+# config/rewards.yaml
+# -----------------------------
+# Recompensas profesionales
+
+# === Tramos por %ROI del trade (aplicado SOLO al cerrar) ===
+# ROI% = pnl_realizado / notional_de_entrada * 100
+tiers:
+  pos:  # ganancias
+    - [0,    5,   0.2]
+    - [6,   15,   0.5]
+    - [16,  40,   1.0]
+    - [41,  60,   1.5]
+    - [60,  99,   2.5]
+    - [100, 1e9,  5.0]
+  neg:  # pérdidas (valores absolutos)
+    - [0,    5,  -0.5]
+    - [6,   15,  -1.0]
+    - [16,  40,  -1.5]
+    - [41,  60,  -3.0]
+    - [60,  99,  -5.0]
+
+# Bonus/malus por razón del cierre (se suman al tramo ROI)
+bonuses:
+  tp_hit: 0.5     # si se cierra por TP
+  sl_hit: -0.5    # si se cierra por SL
+
+# === Pesos de componentes continuos (cada step) ===
+weights:
+  realized_pnl: 1.0         # pnl realizado (USDT) directo del entorno
+  unrealized_pnl: 0.02      # guía suave por pnl no realizado (USDT)
+  r_multiple: 0.3           # refuerzo por R-multiple en cierres (R= pnl / riesgo_inicial)
+  risk_efficiency: 0.2      # premia ROI% alto con riesgo% bajo (usa risk_pct del OPEN)
+  time_penalty: -0.0001     # penaliza mantener posición
+  trade_cost: -0.001        # coste al abrir (control de sobretrading)
+  dd_penalty: -0.01         # ✅ Penalización más suave para permitir recuperación
+  
+  # ← NUEVO: Componentes para supervivencia a largo plazo
+  survival_bonus: 0.001     # ✅ Bonus por cada step sin quiebra (incentiva duración)
+  progress_bonus: 0.1       # ✅ Bonus por acercarse al objetivo (1M USDT)
+  compound_bonus: 0.05      # ✅ Bonus por crecimiento sostenido del balance
+
+# Clipping final del reward por step
+reward_clip: [-5.0, 5.0]
