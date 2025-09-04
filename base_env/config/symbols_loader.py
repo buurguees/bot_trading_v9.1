@@ -38,6 +38,7 @@ class SymbolConfig(BaseModel):
     enabled_tfs: List[str]
     filters: Dict[str, Any]
     leverage: Optional[LeverageSpec] = None  # sólo para futures
+    allow_shorts: bool = True  # ← NUEVO: Habilitar shorts por defecto
 
     @validator("mode")
     def _mode_ok(cls, v):

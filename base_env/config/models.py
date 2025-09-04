@@ -9,6 +9,7 @@ NOTA: Aquí definimos tipos y defaults. La carga real de YAML puedes hacerla en 
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Dict, Literal, Optional, Any
+from pydantic import BaseModel, Field, field_validator
 
 TF = Literal["1m", "5m", "15m", "1h", "4h", "1d"]
 MarketType = Literal["spot", "futures"]
@@ -33,11 +34,45 @@ class HierarchicalConfig:
     dedup_close_window_bars: int = 1
 
 
+class SoftResetConfig(BaseModel):
+    max_resets_per_run: int = Field(default=2, ge=1, le=10)
+    post_reset_leverage_cap: float = Field(default=2.0, ge=1.0, le=25.0)
+    cooldown_bars: int = Field(default=50, ge=0, le=1000)
+    label_segment: bool = Field(default=True)
+
+
+class BankruptcyConfig(BaseModel):
+    enabled: bool = Field(default=True)
+    threshold_pct: float = Field(default=20.0, gt=0.0, le=100.0)
+    penalty_reward: float = Field(default=-10.0)
+    mode: Literal["end", "soft_reset"] = Field(default="end")
+    restart_on_bankruptcy: bool = Field(default=True)
+    soft_reset: Optional[SoftResetConfig] = Field(default_factory=SoftResetConfig)
+
+    @field_validator('soft_reset')
+    @classmethod
+    def validate_soft_reset(cls, v, info):
+        if info.data.get('mode') == 'soft_reset' and v is None:
+            raise ValueError('soft_reset config is required when mode is "soft_reset"')
+        return v
+
+
+@dataclass
+class DefaultLevelsConfig:
+    use_atr: bool = True
+    atr_period: int = 14
+    sl_atr_mult: float = 1.0
+    min_sl_pct: float = 1.0
+    tp_r_multiple: float = 1.5
+
 @dataclass
 class RiskCommon:
     daily_max_drawdown_pct: float = 5.0
     exposure_max_abs: float = 1.0
     circuit_breakers: Dict[str, bool] = field(default_factory=lambda: {"data_quality_pause": True, "inconsistent_signals_pause": True})
+    bankruptcy: BankruptcyConfig = field(default_factory=BankruptcyConfig)
+    default_levels: DefaultLevelsConfig = field(default_factory=DefaultLevelsConfig)
+    train_force_min_notional: bool = True
 
 
 @dataclass
@@ -68,11 +103,20 @@ class FeesConfig:
 
 
 @dataclass
+class LeverageConfig:
+    min: float = 1.0
+    max: float = 25.0
+    step: float = 1.0
+    default: float = 2.0
+
+@dataclass
 class SymbolMeta:
     symbol: str = "BTCUSDT"
     market: MarketType = "spot"
     enabled_tfs: List[TF] = field(default_factory=lambda: ["1m", "5m", "15m", "1h", "4h", "1d"])
     filters: Dict[str, float] = field(default_factory=lambda: {"tickSize": 0.1, "lotStep": 0.0001, "minNotional": 5.0})
+    allow_shorts: bool = True
+    leverage: Optional[LeverageConfig] = None
     futures_meta: Dict[str, float] = field(default_factory=dict)
 
 
@@ -83,6 +127,7 @@ class EnvConfig:
     leverage: float = 1.0    # si futures, rango 2.0–25.0
     symbol_meta: SymbolMeta = field(default_factory=SymbolMeta)
     tfs: List[TF] = field(default_factory=lambda: ["1m", "5m", "15m", "1h", "4h", "1d"])
+    verbosity: str = "low"   # ← NUEVO: Control de verbosity para prints de debug
 
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
     hierarchical: HierarchicalConfig = field(default_factory=HierarchicalConfig)

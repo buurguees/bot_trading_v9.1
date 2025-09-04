@@ -1,6 +1,6 @@
 # config/rewards.yaml
 # -----------------------------
-# Recompensas profesionales
+# Sistema de recompensas profesionales y configurables
 
 # === Tramos por %ROI del trade (aplicado SOLO al cerrar) ===
 # ROI% = pnl_realizado / notional_de_entrada * 100
@@ -19,20 +19,229 @@ tiers:
     - [41,  60,  -3.0]
     - [60,  99,  -5.0]
 
+# === Tramos por R-Multiple (aplicado SOLO al cerrar) ===
+# R = pnl_realizado / riesgo_inicial (distancia SL)
+r_multiple_tiers:
+  pos:  # R-múltiples positivos
+    - [0.0,  1.0,  0.1]    # R=0-1: reward básico
+    - [1.0,  2.0,  0.3]    # R=1-2: reward bueno
+    - [2.0,  3.0,  0.5]    # R=2-3: reward excelente
+    - [3.0,  5.0,  1.0]    # R=3-5: reward excepcional
+    - [5.0,  1e9, 2.0]     # R>5: reward extraordinario
+  neg:  # R-múltiples negativos
+    - [0.0,  1.0, -0.2]    # R=0-1: penalty básico
+    - [1.0,  2.0, -0.5]    # R=1-2: penalty moderado
+    - [2.0,  3.0, -1.0]    # R=2-3: penalty fuerte
+    - [3.0,  1e9, -2.0]    # R>3: penalty severo
+
+# === Sistema de rewards/penalties por leverage ===
+leverage_rewards:
+  # Reward por usar leverage alto en trades ganadores
+  high_leverage_bonus:
+    enabled: true
+    min_leverage: 5.0      # Mínimo leverage para considerar "alto"
+    reward_per_leverage: 0.1  # Reward adicional por cada punto de leverage
+    max_bonus: 2.0         # Máximo bonus por leverage
+  
+  # Penalty por usar leverage alto en trades perdedores
+  high_leverage_penalty:
+    enabled: true
+    min_leverage: 5.0      # Mínimo leverage para considerar "alto"
+    penalty_per_leverage: 0.2  # Penalty adicional por cada punto de leverage
+    max_penalty: 3.0       # Máximo penalty por leverage
+  
+  # Bonus por usar leverage conservador consistentemente
+  conservative_bonus:
+    enabled: true
+    max_leverage: 3.0      # Máximo leverage para considerar "conservador"
+    consistency_bonus: 0.05  # Bonus por mantener leverage conservador
+  
+  # Configuración del sistema de recomendación de leverage
+  leverage_recommendation:
+    base_leverage: 3.0     # Leverage base para recomendaciones
+    volatility_reduction: 0.5  # Reducción de leverage por volatilidad
+    confidence_boost: 0.5  # Aumento de leverage por confianza
+    min_leverage: 2.0      # Leverage mínimo recomendado
+    max_leverage: 10.0     # Leverage máximo recomendado
+  
+  # Configuración del historial de leverage
+  max_history_length: 100  # Máximo número de trades en historial
+  min_samples_for_consistency: 10  # Mínimo samples para calcular consistencia
+
+# === Sistema de rewards/penalties por SL/TP hits ===
+sl_tp_hits:
+  # Penalización por hit de Stop Loss
+  sl_hit_penalty:
+    enabled: true
+    penalty_amount: -5.0      # Penalización base por SL hit
+    scale_with_loss: true     # Escalar con la pérdida
+    max_penalty: -20.0        # Penalización máxima
+  
+  # Reward por hit de Take Profit
+  tp_hit_reward:
+    enabled: true
+    reward_amount: 5.0        # Reward base por TP hit
+    scale_with_profit: true   # Escalar con el profit
+    max_reward: 50.0          # Reward máximo
+    leverage_bonus: true      # Bonus por usar leverage
+
+# === Sistema de rewards por Take Profit ===
+take_profit_rewards:
+  enabled: true
+  tp_reward: 1.0              # Reward base por TP hit
+  efficient_rr_bonus: 0.2     # Bonus por R/R eficiente
+  high_rr_bonus: 0.5          # Bonus por R-multiple alto
+  high_roi_bonus: 0.3         # Bonus por ROI alto
+  max_drawdown_pct: 0.5       # Máximo drawdown permitido (50% del SL)
+  high_rr_threshold: 2.0      # Umbral para R-multiple alto
+  high_roi_threshold: 5.0     # Umbral para ROI alto
+  rr_bonus_multiplier: 0.1    # Multiplicador para bonus R-multiple
+  roi_bonus_multiplier: 0.01  # Multiplicador para bonus ROI
+
+# === Sistema de penalties por Stop Loss ===
+stop_loss_penalties:
+  enabled: true
+  sl_penalty: -0.5            # Penalty base por SL hit
+  sl_hit_penalty: 0.0         # Bonus/malus adicional por SL_HIT
+
+# === Sistema de penalties por Bankruptcy ===
+bankruptcy_penalties:
+  enabled: true
+  bankruptcy_penalty: -10.0   # Penalty severo por bancarrota
+  survival_bonus: 0.001       # Bonus por supervivencia cada step
+  min_survival_equity_pct: 0.5 # Mínimo equity para supervivencia (50% del inicial)
+
+# === Sistema de rewards por Holding ===
+holding_rewards:
+  enabled: true
+  holding_reward: 0.1         # Reward por mantener posiciones con equity positivo
+  reward_interval: 10         # Cada N barras con equity positivo
+
+# === Sistema de penalties por Inactividad ===
+inactivity_penalties:
+  enabled: true
+  inactivity_penalty: -0.01   # Penalty por no abrir trades
+  penalty_interval: 100       # Cada N pasos sin abrir trade
+
+# === Sistema de penalties por Trades Bloqueados ===
+blocked_trade_penalties:
+  enabled: true
+  block_penalty: -0.05        # Penalty por trade bloqueado
+  empty_run_penalty: 0.0      # Penalty por runs vacíos
+  blocked_event_types:        # Tipos de eventos que se consideran bloqueados
+    - "NO_SL_DISTANCE"
+    - "MIN_NOTIONAL_BLOCKED"
+    - "DUPLICATE_DECISION"
+    - "RISK_MANAGER_BLOCKED"
+    - "INVALID_LEVELS"
+
+# === Sistema de rewards por Milestones de Progreso ===
+progress_milestone_rewards:
+  enabled: true
+  milestones:                 # Porcentaje de progreso -> reward (una vez por run)
+    10: 1.0                   # 10% del progreso = +1.0
+    25: 1.5                   # 25% del progreso = +1.5
+    50: 2.0                   # 50% del progreso = +2.0
+    75: 3.0                   # 75% del progreso = +3.0
+    100: 10.0                 # 100% del progreso = +10.0
+
+# === Sistemas Avanzados de Rewards/Penalties ===
+
+# PnL normalizado por volatilidad (Vol-Scaled)
+volatility_reward:
+  enabled: true
+  tf: "1m"
+  atr_period: 14
+  atr_mult: 1.5
+  weight: 0.2
+  per_trade_cap: 0.4
+
+# Penalización por drawdown intra-trade
+drawdown_penalty:
+  enabled: true
+  dd_ratio_threshold: 0.5   # a partir de 50% del SL empieza a penalizar
+  weight: 0.3
+  per_trade_cap: 0.5
+
+# Costes de ejecución explícitos (fees + slippage)
+execution_cost_penalty:
+  enabled: true
+  include_slippage: true
+  est_slippage_bps: 1.0
+  weight: 0.5
+  per_trade_cap: 0.3
+
+# Alineación multi-TF (confluencia)
+mtf_alignment:
+  enabled: true
+  higher_tf: ["1h", "4h"]
+  agree_bonus: 0.15
+  disagree_penalty: 0.075
+
+# Eficiencia temporal (PnL por barra)
+time_efficiency:
+  enabled: true
+  weight: 0.1
+  per_bar_cap: 0.03
+  per_trade_cap: 0.3
+
+# Penalización por sobre-operar (overtrading)
+overtrading_penalty:
+  enabled: true
+  window_bars: 200
+  trade_threshold: 5
+  roi_min_pct: 0.0
+  penalty: 0.1
+
+# Neutral de expiración por TTL
+ttl_expiry:
+  enabled: true
+  neutral_penalty: 0.05  # sale por TTL sin SL/TP
+
+# Exploración acotada de leverage/timeframe
+exploration_bonus:
+  enabled: true
+  weight: 0.05
+  decay_alpha: 5
+  per_trade_cap: 0.1
+
+# Clipping y balance final
+clipping:
+  per_step: [-0.2, 0.2]
+  per_close_event: [-1.0, 1.5]
+
 # Bonus/malus por razón del cierre (se suman al tramo ROI)
 bonuses:
-  tp_hit: 0.5     # si se cierra por TP
-  sl_hit: -0.5    # si se cierra por SL
+  ttl_hit: -0.3   # si se cierra por TTL (timeout)
+
+# === Sistema de rewards por duración del trade (bars_held) ===
+duration_rewards:
+  enabled: true
+  # Penalización dura por trades de 0 barras (posible scalping excesivo)
+  zero_bars_penalty: -2.0
+  
+  # Sin reward/penalty por trades de 1 barra (neutral)
+  one_bar_reward: 0.0
+  
+  # Rewards progresivos por trades de 2+ barras
+  two_plus_bars_reward: 0.3
+  
+  # Bonus adicional por trades de larga duración
+  long_duration_bonus:
+    enabled: true
+    min_bars: 10        # Mínimo de barras para considerar "larga duración"
+    bonus_per_bar: 0.05 # Bonus adicional por cada barra extra
+    max_bonus: 1.0      # Máximo bonus por duración
 
 # === Pesos de componentes continuos (cada step) ===
 weights:
-  realized_pnl: 1.0         # pnl realizado (USDT) directo del entorno
-  unrealized_pnl: 0.02      # guía suave por pnl no realizado (USDT)
+  realized_pnl: 0.0         # ← ELIMINADO: No usar PnL instantáneo
+  unrealized_pnl: 0.0       # ← ELIMINADO: No usar PnL no realizado
   r_multiple: 0.3           # refuerzo por R-multiple en cierres (R= pnl / riesgo_inicial)
   risk_efficiency: 0.2      # premia ROI% alto con riesgo% bajo (usa risk_pct del OPEN)
-  time_penalty: -0.0001     # penaliza mantener posición
+  time_penalty: 0.0         # ← ELIMINADO: No penalizar duración de posiciones
   trade_cost: -0.001        # coste al abrir (control de sobretrading)
-  dd_penalty: -0.01         # ✅ Penalización más suave para permitir recuperación
+  dd_penalty: 0.0           # ← ELIMINADO: No penalizar drawdowns intermedios
   
   # ← NUEVO: Componentes para supervivencia a largo plazo
   survival_bonus: 0.001     # ✅ Bonus por cada step sin quiebra (incentiva duración)
@@ -42,6 +251,25 @@ weights:
   # ← NUEVO: Penalty más fuerte por runs vacíos y rewards por balance
   empty_run_penalty: -0.5   # ✅ Penalty fuerte por runs sin actividad
   balance_milestone_reward: 1.0  # ✅ Reward cada +100 de balance que supere 0
+
+# === Configuración de timeframes para trading ===
+timeframe_config:
+  # Timeframes habilitados para ejecución (el bot puede elegir entre estos)
+  execution_tfs: ["1m", "5m"]
+  
+  # Timeframes para análisis de tendencia
+  trend_tfs: ["1h", "4h"]
+  
+  # Timeframes para confirmación
+  confirmation_tfs: ["15m"]
+  
+  # Reward por usar timeframes más largos (más conservador)
+  timeframe_rewards:
+    enabled: true
+    "1m": 0.0      # Sin bonus/penalty
+    "5m": 0.1      # Bonus por usar 5m
+    "15m": 0.2     # Bonus por usar 15m
+    "1h": 0.3      # Bonus por usar 1h
 
 # Clipping final del reward por step
 reward_clip: [-5.0, 5.0]

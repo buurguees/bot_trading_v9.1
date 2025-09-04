@@ -56,13 +56,18 @@ class ParquetHistoricalBroker:
             self.series_by_tf[tf] = series
             self.ts_index_by_tf[tf] = ordered_ts
 
-        # Base timeline
+        # Base timeline (recortada por rango si se especifica ts_from/ts_to)
         base_ts_list = self.ts_index_by_tf.get(base_tf, [])
         if not base_ts_list:
             raise RuntimeError(f"No hay datos para TF base {base_tf} en {symbol}/{market}/{stage}")
+        if ts_from is not None:
+            base_ts_list = [t for t in base_ts_list if t >= int(ts_from)]
+        if ts_to is not None:
+            base_ts_list = [t for t in base_ts_list if t <= int(ts_to)]
         self._base_ts_list = base_ts_list
         # Cursor en timeline base
         self._i = 0
+        self._start_i = 0
 
     # ------------- API -------------
     def now_ts(self) -> int:
@@ -71,6 +76,19 @@ class ParquetHistoricalBroker:
     def next(self) -> None:
         if self._i < len(self._base_ts_list) - 1:
             self._i += 1
+    
+    def is_end_of_data(self) -> bool:
+        return self._i >= len(self._base_ts_list) - 1
+    
+    def reset_to_start(self) -> None:
+        """Reinicia el cursor al inicio del histórico (para quiebra)"""
+        self._i = self._start_i
+
+    @property
+    def range_ts(self) -> tuple[int, int]:
+        if not self._base_ts_list:
+            return (0, 0)
+        return (self._base_ts_list[0], self._base_ts_list[-1])
 
     def get_price(self) -> Optional[float]:
         bar = self.get_bar(self.base_tf)

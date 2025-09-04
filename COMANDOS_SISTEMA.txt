@@ -1,0 +1,340 @@
+# ===========================================
+# COMANDOS DEL SISTEMA BOT TRADING v9.1
+# ===========================================
+# 
+# Este archivo contiene todos los comandos necesarios para ejecutar
+# el sistema completo de trading con Reinforcement Learning.
+#
+# Fecha de creación: 2025-09-04
+# Versión: v9.1
+# ===========================================
+
+# ===========================================
+# 1. APLICACIÓN PRINCIPAL (app.py)
+# ===========================================
+
+# Ejecutar entrenamiento completo según configuración
+python app.py run
+# Descripción: Ejecuta el entrenamiento del bot según config/train.yaml
+
+# Ejecutar entrenamiento con interfaz gráfica
+python app.py run --gui
+# Descripción: Ejecuta entrenamiento + abre ventana de progreso equity/balance
+
+# Solo abrir interfaz gráfica de progreso
+python app.py gui
+# Descripción: Abre únicamente la ventana de monitoreo de progreso
+
+# Mostrar resumen de configuraciones
+python app.py config
+# Descripción: Muestra un resumen de todas las configuraciones YAML
+
+# ===========================================
+# 2. ENTRENAMIENTO Y MODELOS
+# ===========================================
+
+# Entrenar modelo PPO directamente
+python scripts/train_ppo.py
+# Descripción: Entrena el modelo PPO con configuración por defecto
+
+# Ejecutar backtest rápido (smoke test)
+python scripts/backtest_smoke_from_aligned.py
+# Descripción: Ejecuta un backtest rápido para verificar funcionamiento
+
+# Ejecutar smoke run (prueba rápida)
+python scripts/smoke_run.py
+# Descripción: Ejecuta una prueba rápida del sistema sin entrenamiento completo
+
+# ===========================================
+# 3. MONITOREO Y PROGRESO
+# ===========================================
+
+# Monitorear progreso de entrenamiento
+python scripts/watch_progress.py
+# Descripción: Monitorea el progreso del entrenamiento en tiempo real
+
+# Mostrar progreso actual
+python scripts/show_progress.py
+# Descripción: Muestra el estado actual del entrenamiento
+
+# Monitorear acciones del agente
+python monitoring/monitor_actions.py
+# Descripción: Monitorea las acciones que toma el agente RL
+
+# Monitorear logs del sistema
+python monitoring/monitor_logs.py
+# Descripción: Monitorea y analiza los logs del sistema
+
+# Monitorear correcciones aplicadas
+python monitoring/monitor_fixes.py
+# Descripción: Monitorea las correcciones automáticas aplicadas
+
+# Monitorear entrenamiento (PowerShell)
+monitoring/monitor_training.ps1
+# Descripción: Script PowerShell para monitoreo completo del entrenamiento
+
+# Iniciar entrenamiento (PowerShell)
+monitoring/start_training.ps1
+# Descripción: Script PowerShell para iniciar el entrenamiento
+
+# ===========================================
+# 4. GESTIÓN DE DATOS HISTÓRICOS
+# ===========================================
+
+# Descargar datos históricos
+python data_pipeline/scripts/download_history.py
+# Descripción: Descarga datos históricos de OHLCV desde el exchange
+
+# Validar datos históricos
+python data_pipeline/scripts/validate_history.py
+# Descripción: Valida la integridad y orden de los datos históricos
+
+# Alinear paquetes de datos
+python data_pipeline/scripts/align_package.py
+# Descripción: Alinea los timeframes y genera paquetes de datos
+
+# Actualizar manifiesto de datos
+python data_pipeline/scripts/manifest_update.py
+# Descripción: Actualiza el manifiesto con metadatos de los datos
+
+# ===========================================
+# 5. ANÁLISIS Y MÉTRICAS
+# ===========================================
+
+# Verificar el mejor run
+python scripts/check_best_run.py
+# Descripción: Analiza y muestra el mejor run de entrenamiento
+
+# Limpiar runs duplicados
+python scripts/clean_duplicate_runs.py
+# Descripción: Elimina runs duplicados del historial
+
+# ===========================================
+# 6. UTILIDADES Y DEBUGGING
+# ===========================================
+
+# Verificar estado del sistema
+python utils/check_status.py
+# Descripción: Verifica el estado general del sistema
+
+# Debug detallado
+python utils/debug_detailed.py
+# Descripción: Ejecuta debugging detallado del sistema
+
+# Corregir acciones RL
+python utils/fix_rl_actions.py
+# Descripción: Corrige problemas con las acciones del agente RL
+
+# Reiniciar entrenamiento
+python utils/restart_training.py
+# Descripción: Reinicia el proceso de entrenamiento
+
+# Probar correcciones
+python utils/test_fix.py
+# Descripción: Prueba las correcciones aplicadas al sistema
+
+# Ejemplo de logs UTC
+python -m utils.example_utc_logs
+# Descripción: Muestra ejemplos de logs con timestamps UTC legibles
+
+# ===========================================
+# 7. TESTING Y VALIDACIÓN
+# ===========================================
+
+# Ejecutar todos los tests
+pytest tests/
+# Descripción: Ejecuta todos los tests unitarios del sistema
+
+# Test específico de consistencia del ledger
+pytest tests/test_ledger_consistency.py
+# Descripción: Prueba la consistencia del sistema de contabilidad
+
+# Test de lógica de rewards
+pytest tests/test_reward_logic.py
+# Descripción: Prueba la lógica del sistema de rewards
+
+# Test de métricas de runs
+pytest tests/test_run_metrics.py
+# Descripción: Prueba las métricas de los runs
+
+# Test de alineación sin duplicados
+pytest tests/test_align_no_dupes.py
+# Descripción: Prueba la alineación de timeframes sin duplicados
+
+# ===========================================
+# 8. COMANDOS DE DESARROLLO
+# ===========================================
+
+# Formatear código con Black
+black .
+# Descripción: Formatea todo el código Python según estándares
+
+# Linting con Ruff
+ruff check .
+# Descripción: Verifica el código con el linter Ruff
+
+# Verificación de tipos con MyPy
+mypy .
+# Descripción: Verifica los tipos de datos en el código
+
+# ===========================================
+# 9. COMANDOS DE GESTIÓN DE ENTORNO
+# ===========================================
+
+# Activar entorno virtual (Windows)
+venv\Scripts\activate
+# Descripción: Activa el entorno virtual de Python
+
+# Activar entorno virtual (Linux/Mac)
+source venv/bin/activate
+# Descripción: Activa el entorno virtual de Python
+
+# Instalar dependencias
+pip install -r requirements.txt
+# Descripción: Instala todas las dependencias del proyecto
+
+# Actualizar dependencias
+pip install -r requirements.txt --upgrade
+# Descripción: Actualiza todas las dependencias a las últimas versiones
+
+# ===========================================
+# 10. COMANDOS DE GESTIÓN DE DATOS
+# ===========================================
+
+# Verificar datos disponibles
+ls data/
+# Descripción: Lista los símbolos con datos disponibles
+
+# Verificar datos de un símbolo específico
+ls data/BTCUSDT/
+# Descripción: Lista los archivos de datos para BTCUSDT
+
+# Verificar modelos entrenados
+ls models/
+# Descripción: Lista los modelos entrenados disponibles
+
+# Verificar logs de entrenamiento
+ls logs/
+# Descripción: Lista los logs de entrenamiento
+
+# ===========================================
+# 11. COMANDOS DE CONFIGURACIÓN
+# ===========================================
+
+# Ver configuración de símbolos
+cat config/symbols.yaml
+# Descripción: Muestra la configuración de símbolos
+
+# Ver configuración de rewards
+cat config/rewards.yaml
+# Descripción: Muestra la configuración del sistema de rewards
+
+# Ver configuración de riesgo
+cat config/risk.yaml
+# Descripción: Muestra la configuración de gestión de riesgo
+
+# Ver configuración de entrenamiento
+cat config/train.yaml
+# Descripción: Muestra la configuración de entrenamiento
+
+# ===========================================
+# 12. COMANDOS DE MONITOREO AVANZADO
+# ===========================================
+
+# Monitorear métricas en tiempo real
+tail -f logs/ppo_v1/BTCUSDT_metrics.jsonl
+# Descripción: Monitorea las métricas de entrenamiento en tiempo real
+
+# Ver logs de runs
+tail -f models/BTCUSDT/BTCUSDT_runs.jsonl
+# Descripción: Monitorea los logs de runs en tiempo real
+
+# Ver logs de estrategias
+tail -f models/BTCUSDT/BTCUSDT_strategies_provisional.jsonl
+# Descripción: Monitorea los logs de estrategias en tiempo real
+
+# ===========================================
+# 13. COMANDOS DE ANÁLISIS DE LOGS
+# ===========================================
+
+# Analizar logs con jq (requiere jq instalado)
+cat models/BTCUSDT/BTCUSDT_runs.jsonl | jq '.win_rate_trades, .profit_factor'
+# Descripción: Extrae métricas específicas de los logs de runs
+
+# Filtrar runs por fecha
+cat models/BTCUSDT/BTCUSDT_runs.jsonl | jq 'select(.ts_start_utc | startswith("2025-09-04"))'
+# Descripción: Filtra runs por fecha específica usando timestamps UTC
+
+# Contar trades por tipo
+cat models/BTCUSDT/BTCUSDT_strategies_provisional.jsonl | jq '.kind' | sort | uniq -c
+# Descripción: Cuenta los diferentes tipos de eventos de trading
+
+# ===========================================
+# 14. COMANDOS DE MANTENIMIENTO
+# ===========================================
+
+# Limpiar archivos temporales
+rm -rf __pycache__/
+find . -name "*.pyc" -delete
+# Descripción: Limpia archivos temporales de Python
+
+# Limpiar logs antiguos
+find logs/ -name "*.log" -mtime +7 -delete
+# Descripción: Elimina logs más antiguos de 7 días
+
+# Limpiar modelos temporales
+rm -rf models/*/tmp/
+# Descripción: Elimina modelos temporales
+
+# ===========================================
+# 15. COMANDOS DE BACKUP Y RESTAURACIÓN
+# ===========================================
+
+# Crear backup de modelos
+tar -czf backup_models_$(date +%Y%m%d).tar.gz models/
+# Descripción: Crea backup comprimido de todos los modelos
+
+# Crear backup de configuraciones
+tar -czf backup_config_$(date +%Y%m%d).tar.gz config/
+# Descripción: Crea backup comprimido de todas las configuraciones
+
+# Crear backup de datos
+tar -czf backup_data_$(date +%Y%m%d).tar.gz data/
+# Descripción: Crea backup comprimido de todos los datos
+
+# ===========================================
+# NOTAS IMPORTANTES
+# ===========================================
+
+# 1. Siempre activar el entorno virtual antes de ejecutar comandos
+# 2. Los comandos de PowerShell (.ps1) son específicos para Windows
+# 3. Los comandos con jq requieren tener jq instalado
+# 4. Los comandos de backup usan tar (disponible en Linux/Mac/WSL)
+# 5. Ajustar las rutas según tu sistema operativo
+# 6. Verificar que todas las dependencias estén instaladas
+# 7. Los logs con timestamps UTC son legibles directamente
+# 8. Usar Ctrl+C para interrumpir procesos en ejecución
+
+# ===========================================
+# FLUJO DE TRABAJO RECOMENDADO
+# ===========================================
+
+# 1. Configurar entorno:
+#    venv\Scripts\activate
+#    pip install -r requirements.txt
+
+# 2. Descargar datos:
+#    python data_pipeline/scripts/download_history.py
+#    python data_pipeline/scripts/validate_history.py
+
+# 3. Entrenar modelo:
+#    python app.py run
+
+# 4. Monitorear progreso:
+#    python scripts/watch_progress.py
+
+# 5. Analizar resultados:
+#    python scripts/check_best_run.py
+
+# 6. Ejecutar backtest:
+#    python scripts/backtest_smoke_from_aligned.py

@@ -70,20 +70,29 @@ class PolicyEngine:
             return Decision(should_open=False, price_hint=price_exec)
 
         # ---------- APERTURA ----------
+        # Verificar confluencia y señal válida
         if not conf_ok or side_hint == 0:
             return Decision(should_open=False, side=0, price_hint=price_exec)
 
-        if dedup_block(ts_now, self._last_open_ts, self.cfg.dedup_open_window_bars, self.base_tf_ms):
+        # Verificar deduplicación
+        if dedup_block(ts_now, self._last_open_ts, window_bars=self.cfg.dedup_open_window_bars, base_tf_ms=self.base_tf_ms):
             return Decision(should_open=False, side=0, price_hint=price_exec)
 
-        # SL/TP por ATR: exec → fallback base
-        atr_exec = features.get(self.exec_tf, {}).get("atr14")
-        if atr_exec is None:
-            atr_exec = features.get(self.base_tf, {}).get("atr14")
+        # Obtener ATR del TF de ejecución
+        atr_val = float(features.get(self.exec_tf, {}).get("atr14", 0.0) or 0.0)
 
-        sl, tp = sl_tp_from_atr(price_exec, atr_exec, side_hint, k_sl=1.5, k_tp=2.0)
-        ttl_bars = 200
+        # Multiplicadores desde risk.yaml
+        k_sl = float(self.cfg.risk.common.default_levels.sl_atr_mult)
+        k_tp = float(self.cfg.risk.common.default_levels.tp_r_multiple)
 
+        sl, tp = sl_tp_from_atr(price_exec, atr_val, side_hint, k_sl=k_sl, k_tp=k_tp)
+        ttl_bars = int(self.cfg.risk.common.default_levels.ttl_bars_default)
+
+        # Si sl o tp son None, no abrir
+        if sl is None or tp is None or ttl_bars <= 0:
+            return Decision(should_open=False, side=0, price_hint=price_exec)
+
+        # Al abrir: actualizar timestamp de última apertura
         self._last_open_ts = ts_now
         self._conf_loss_count = 0
 

@@ -1,111 +1,41 @@
-﻿# Archivos de datos pesados
-*.parquet
-*.csv
-*.h5
-*.hdf5
-*.pkl
-*.pickle
-*.json
-*.xml
-*.zip
-*.tar.gz
-*.rar
-*.7z
-
-# Manifest files de datos
-data/**/manifest.json
-
-# Directorios de datos
-data/
-data_warehouse/
-warehouse/
-datasets/
-raw_data/
-processed_data/
-features/
-models/
-checkpoints/
-logs/
-temp/
-tmp/
-cache/
-
-# Archivos de caché y temporales
-.pytest_cache/
-.cursor/
+﻿# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[cod]
+*$py.class
 *.so
-*.egg
-*.egg-info/
-dist/
+.Python
 build/
-eggs/
-parts/
-bin/
-var/
-sdist/
 develop-eggs/
-.installed.cfg
+dist/
+downloads/
+eggs/
+.eggs/
 lib/
 lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Entornos virtuales
+# Virtual Environment
 venv/
 env/
 ENV/
-.venv/
-.env/
+env.bak/
+venv.bak/
 
-# IDEs y editores
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
-Thumbs.db
 
-# Archivos de configuración local
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Archivos de logs
-*.log
-logs/
-log/
-
-# Archivos de base de datos
-*.db
-*.sqlite
-*.sqlite3
-
-# Archivos de modelos ML
-*.joblib
-*.pkl
-*.h5
-*.onnx
-*.tflite
-*.pb
-
-# Archivos de configuración de usuario
-config/local.yaml
-config/secrets.yaml
-config/private.yaml
-
-# Archivos de trading
-*.backtest
-*.results
-*.performance
-*.metrics
-
-# Archivos de sistema
+# OS
 .DS_Store
 .DS_Store?
 ._*
@@ -114,52 +44,58 @@ config/private.yaml
 ehthumbs.db
 Thumbs.db
 
-# Archivos de Windows
-*.lnk
+# Logs
+*.log
+logs/*.log
+logs/ppo_v1/
+logs/test_logs/
 
-# Archivos de macOS
-.AppleDouble
-.LSOverride
+# Models
+models/*/BTCUSDT_PPO.zip
+models/*/BTCUSDT_strategies.json
+models/*/BTCUSDT_runs.jsonl
+models/*/BTCUSDT_strategies_provisional.jsonl
+models/tmp/
 
-# Archivos de Linux
-*~
+# Data
+data/*/raw/
+data/*/processed/
+*.parquet
+*.csv
 
-# Archivos de respaldo
-*.bak
-*.backup
-*.old
-*.orig
+# Archives
+archives/
+*.zip
+*.tar.gz
+
+# Test outputs
+test_models/
+test_logs/
+
+# Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
 
-# Archivos de compresión
-*.gz
-*.bz2
-*.xz
-*.lzma
+# Jupyter Notebooks
+.ipynb_checkpoints/
 
-# Archivos de imágenes (si no los necesitas)
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.tiff
-*.ico
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Archivos de documentos (si no los necesitas)
-*.pdf
-*.doc
-*.docx
-*.xls
-*.xlsx
-*.ppt
-*.pptx
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# Archivos de audio/video (si no los necesitas)
-*.mp3
-*.mp4
-*.avi
-*.mov
-*.wav
-*.flac
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# API Keys (if any)
+*.key
+secrets.yaml

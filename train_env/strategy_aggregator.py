@@ -3,7 +3,23 @@
 from __future__ import annotations
 from pathlib import Path
 import json
+import numpy as np
 from typing import List, Dict, Any
+
+def _convert_numpy_types(obj):
+    """Convierte tipos NumPy a tipos nativos de Python para serialización JSON"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: _convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    else:
+        return obj
 
 def _score_row(e: Dict[str, Any]) -> float:
     r = float(e.get("r_multiple", 0.0))
@@ -79,29 +95,79 @@ def _dedupe(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 def aggregate_top_k(provisional_file: str, best_json_file: str, top_k: int = 1000) -> None:
+    """Consolida estrategias provisionales con las mejores existentes."""
     prov = Path(provisional_file)
     best = Path(best_json_file)
-    rows = _load_jsonl(prov)
-
-    # merge con las ya guardadas
-    if best.exists():
-        try:
-            old = json.loads(best.read_text(encoding="utf-8"))
-            if isinstance(old, list):
-                rows.extend(old)
-        except Exception:
-            pass
-
-    if not rows:
+    
+    # Cargar estrategias provisionales
+    new_rows = _load_jsonl(prov)
+    
+    if not new_rows:
+        print("📊 No hay estrategias provisionales para consolidar")
         prov.unlink(missing_ok=True)
         return
-
-    rows = _dedupe(rows)
-    rows.sort(key=_score_row, reverse=True)
-    rows = rows[: int(top_k)]
-
+    
+    print(f"📊 Consolidando {len(new_rows)} estrategias provisionales...")
+    
+    # Cargar estrategias existentes
+    existing_rows = []
+    if best.exists():
+        try:
+            old_data = json.loads(best.read_text(encoding="utf-8"))
+            if isinstance(old_data, list):
+                existing_rows = old_data
+                print(f"📊 Cargadas {len(existing_rows)} estrategias existentes")
+        except Exception as e:
+            print(f"⚠️ Error cargando estrategias existentes: {e}")
+    
+    # Combinar y deduplicar
+    all_rows = new_rows + existing_rows
+    all_rows = _dedupe(all_rows)
+    print(f"📊 Total de estrategias únicas: {len(all_rows)}")
+    
+    # Calcular scores y ordenar
+    for row in all_rows:
+        row["_score"] = _score_row(row)
+    
+    all_rows.sort(key=lambda x: x["_score"], reverse=True)
+    
+    # Mantener solo las top-k
+    top_rows = all_rows[:top_k]
+    
+    # Remover scores temporales
+    for row in top_rows:
+        row.pop("_score", None)
+    
+    # Guardar estrategias consolidadas
     best.parent.mkdir(parents=True, exist_ok=True)
-    best.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # limpiar provisional
+    # Convertir tipos NumPy a tipos nativos de Python para serialización JSON
+    converted_rows = _convert_numpy_types(top_rows)
+    best.write_text(json.dumps(converted_rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    
+    print(f"✅ Estrategias consolidadas: {len(top_rows)}/{top_k} (mejores {len(top_rows)} estrategias)")
+    
+    # Mostrar estadísticas de las mejores estrategias
+    if top_rows:
+        _print_strategy_stats(top_rows[:10])  # Top 10
+    
+    # Limpiar provisional
     prov.unlink(missing_ok=True)
+    print("🧹 Archivo provisional limpiado")
+
+
+def _print_strategy_stats(top_strategies: List[Dict[str, Any]]) -> None:
+    """Imprime estadísticas de las mejores estrategias."""
+    print("\n🏆 TOP ESTRATEGIAS:")
+    print("=" * 80)
+    
+    for i, strategy in enumerate(top_strategies, 1):
+        roi_pct = strategy.get("roi_pct", 0.0)
+        r_multiple = strategy.get("r_multiple", 0.0)
+        realized_pnl = strategy.get("realized_pnl", 0.0)
+        exec_tf = strategy.get("exec_tf", "N/A")
+        bars_held = strategy.get("bars_held", 0)
+        leverage_used = strategy.get("leverage_used", 1.0)
+        
+        print(f"{i:2d}. ROI: {roi_pct:6.1f}% | R: {r_multiple:5.1f} | PnL: {realized_pnl:8.1f} | TF: {exec_tf} | Bars: {bars_held:3d} | Lev: {leverage_used:4.1f}x")
+    
+    print("=" * 80)

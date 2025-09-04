@@ -3,14 +3,14 @@
 # Ubicación: config/hierarchical.yaml
 # La consume base_env/analysis y base_env/policy (confluencias y umbrales).
 layers:
-  direction_tfs: ["1d", "4h"]
-  confirm_tfs: ["1h", "15m"]
-  execute_tfs: ["5m", "1m"]
+  direction_tfs: ["1d", "4h"]     # ← Tendencias de largo plazo
+  confirm_tfs: ["1h", "15m"]      # ← Confirmaciones de medio plazo
+  execute_tfs: ["1m", "5m"]       # ← NUEVO: Múltiples TFs de ejecución (bot puede elegir)
 
 gating:
-  min_confidence: 0.30
+  min_confidence: 0.0  # ← NUEVO: Relajado para permitir arranque
   allow_fallback_open: true
   allow_fallback_close: true
   dedup:
-    open_window_bars: 3
-    close_window_bars: 1
+    open_window_bars: 3  # ← AJUSTADO: Ventana de deduplicación para aperturas
+    close_window_bars: 1  # ← Ventana de deduplicación para cierres

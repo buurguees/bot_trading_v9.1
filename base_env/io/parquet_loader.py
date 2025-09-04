@@ -14,7 +14,7 @@
 #   - ts en milisegundos UTC (int64)
 
 from __future__ import annotations
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple, List
 from pathlib import Path
 
 try:
@@ -154,3 +154,84 @@ def load_latest_n(
         return {}
     # Cargamos sin filtro y limit con PyArrow (tomando los últimos N tras ordenar).
     return load_window(root, symbol, market, tf, ts_from=None, ts_to=None, stage=stage, limit=n)
+
+
+# -------- Validación de alineación y huecos --------
+from ..tfs.calendar import tf_to_ms
+
+def validate_alignment_and_gaps(
+    root: str | Path,
+    symbol: str,
+    market: str,
+    tfs: List[str],
+    stage: str = "aligned",
+    allow_gaps: bool = False,
+) -> Dict[str, Dict[str, int]]:
+    """
+    Valida que para cada TF:
+      - Existan datos
+      - Las marcas de tiempo estén ordenadas y sobre la rejilla del TF (ts % tf_ms == 0)
+      - No haya huecos (diff == tf_ms). Si allow_gaps=True, sólo reporta.
+
+    Devuelve resumen por TF: {tf: {rows, gaps, offgrid, duplicates}}.
+    Lanza ValueError si se detectan problemas y allow_gaps=False.
+    """
+    if not _HAS_PA:
+        raise RuntimeError("pyarrow no está instalado. Ejecuta: pip install pyarrow")
+
+    summary: Dict[str, Dict[str, int]] = {}
+    problems: List[str] = []
+
+    for tf in tfs:
+        files = list(list_files(root, symbol, market, stage, tf))
+        if not files:
+            problems.append(f"[{tf}] No hay ficheros en {root}/{symbol}/{market}/{stage}/{tf}")
+            summary[tf] = {"rows": 0, "gaps": 0, "offgrid": 0, "duplicates": 0}
+            continue
+
+        dataset = ds.dataset([str(f) for f in files], format="parquet", partitioning="hive")
+        if "ts" not in dataset.schema.names:
+            problems.append(f"[{tf}] Falta columna 'ts'")
+            summary[tf] = {"rows": 0, "gaps": 0, "offgrid": 0, "duplicates": 0}
+            continue
+
+        table = dataset.scanner(columns=["ts"]).to_table().sort_by("ts")
+        # Convertir a pandas para deduplicar correctamente
+        df = table.to_pandas()
+        df = df.drop_duplicates(subset=["ts"], keep="last").sort_values("ts")
+        ts_arr = df["ts"].tolist()
+        rows = len(ts_arr)
+        gaps = 0
+        offgrid = 0
+        duplicates = 0
+        if rows == 0:
+            problems.append(f"[{tf}] Sin filas tras lectura")
+            summary[tf] = {"rows": 0, "gaps": 0, "offgrid": 0, "duplicates": 0}
+            continue
+
+        step = tf_to_ms(tf)  # validación de rejilla
+        prev = None
+        seen = set()
+        for t in ts_arr:
+            if (t % step) != 0:
+                offgrid += 1
+            if prev is not None:
+                dt = t - prev
+                if dt > step:
+                    gaps += (dt // step) - 1
+                if dt == 0:
+                    duplicates += 1
+            prev = t
+            if t in seen:
+                duplicates += 1
+            else:
+                seen.add(t)
+
+        summary[tf] = {"rows": rows, "gaps": gaps, "offgrid": offgrid, "duplicates": duplicates}
+        if (gaps > 0 or offgrid > 0 or duplicates > 0) and not allow_gaps:
+            problems.append(f"[{tf}] gaps={gaps}, offgrid={offgrid}, duplicates={duplicates}")
+
+    if problems and not allow_gaps:
+        raise ValueError("Validación de histórico fallida:\n- " + "\n- ".join(problems))
+
+    return summary

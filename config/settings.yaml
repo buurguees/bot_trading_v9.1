@@ -2,9 +2,12 @@
 # Descripción: Configuración global del proyecto (entorno, logs, seeds, modo).
 # Ubicación: config/settings.yaml
 # Esta información la consume el arranque de la app y los módulos que necesiten saber entorno (train/backtest/live).
-environment: dev           # dev | paper | live
+environment: dev
 logging_level: INFO        # DEBUG | INFO | WARNING | ERROR
 seed: 42
 timezone: "UTC"
 results_dir: "runs"
 models_dir: "models"
+
+# Exchange configuration
+exchange: bitget           # binance | bitget

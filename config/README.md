@@ -37,7 +37,7 @@ data:
   market: "spot"
   stage: "aligned"
   tfs: ["1m","5m"]
-  months_back: 60
+  months_back: 36
 
 env:
   n_envs: 4

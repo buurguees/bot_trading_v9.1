@@ -10,20 +10,46 @@ common:
     inconsistent_signals_pause: true
 
   bankruptcy:
+    enabled: true                    # Activado
+    threshold_pct: 5.0               # equity <= initial_balance * 5% → bancarrota
+    penalty_reward: -10.0            # penalización fuerte
+    mode: "soft_reset"               # modo soft_reset para continuar el historial
+    restart_on_bankruptcy: false     # no reiniciar episodio; seguimos tras soft_reset
+    soft_reset:
+      max_resets_per_run: 2          # máximo resets antes de fallback a "end"
+      post_reset_leverage_cap: 2.0   # leverage máximo tras reset
+      cooldown_bars: 50              # barras sin trading tras reset
+      label_segment: true            # incrementar segment_id en logger
+
+  # ← NUEVO: Niveles por defecto para SL/TP
+  default_levels:
+    use_atr: false                   # ← CAMBIADO: Usar porcentajes por defecto
+    atr_period: 14                   # período del ATR
+    sl_atr_mult: 1.0                 # múltiplo ATR para SL
+    min_sl_pct: 1.0                  # ← AUMENTADO: SL mínimo 1% para evitar stops prematuros
+    tp_r_multiple: 1.5               # ← AUMENTADO: TP más lejano para mayor asimetría
+    ttl_bars_default: 180            # ← NUEVO: TTL por defecto si no viene del agente
+  
+  # ← NUEVO: Configuración para forzar minNotional en entrenamiento
+  train_force_min_notional: true     # escalar qty al mínimo permitido si es necesario
+  # ← NUEVO: Permitir fallback de niveles en TRAIN (no LIVE)
+  allow_open_without_levels_train: true
+  # ← NUEVO: Fallback de ATR configurable
+  atr_fallback:
     enabled: true
-    threshold_pct: 20.0              # -80% del balance inicial
-    penalty_reward: -10.0            # penalización más fuerte
-    restart_on_bankruptcy: true      # Reinicia cronológicamente desde el inicio del histórico
+    tf: "1m"
+    lookback: 14
+    min_sl_atr_mult: 1.2
 
 spot:
-  risk_pct_per_trade: 0.5            # % del equity_quote en riesgo por operación
+  risk_pct_per_trade: 2.0            # ← AUMENTADO: De 1.0% a 2.0% para permitir trades
   trailing:
     enabled: true
     atr_multiple: 1.0
 
 futures:
   max_initial_leverage: 3
-  risk_pct_per_trade: 0.5
+  risk_pct_per_trade: 0.25           # ← MANTENIDO: 0.25% para trades más conservadores
   margin_buffer_pct: 10.0
   trailing:
     enabled: true

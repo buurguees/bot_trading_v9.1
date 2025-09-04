@@ -5,17 +5,43 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional, Dict, Any
 import json
+import numpy as np
+from ..metrics.trade_metrics import TradeMetrics, TradeRecord
+from ..utils.timestamp_utils import add_utc_timestamps
+
+def _convert_numpy_types(obj):
+    """Convierte tipos NumPy a tipos nativos de Python para serialización JSON"""
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: _convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_numpy_types(item) for item in obj]
+    else:
+        return obj
 
 class RunLogger:
-    def __init__(self, symbol: str, models_root: str = "models"):
+    def __init__(self, symbol: str, models_root: str = "models", max_records: int = 2000, prune_strategy: str = "fifo"):
         self.symbol = symbol
         self.dir = Path(models_root) / symbol
         self.dir.mkdir(parents=True, exist_ok=True)
         self.runs_file = self.dir / f"{symbol}_runs.jsonl"
         self.progress_file = self.dir / f"{symbol}_progress.json"
         self._active: Optional[Dict[str, Any]] = None
+        # ← NUEVO: Recolector de métricas de trades
+        self._trade_metrics = TradeMetrics()
+        # ← NUEVO: Configuración de retención
+        self.max_records = max_records
+        self.prune_strategy = prune_strategy
 
-    def start(self, market: str, initial_balance: float, target_balance: float, initial_equity: float, ts_start: int):
+    def start(self, market: str, initial_balance: float, target_balance: float, initial_equity: float, ts_start: int, segment_id: int = 0):
+        # ← NUEVO: Resetear métricas de trades para el nuevo run
+        self._trade_metrics.reset()
+        
         self._active = {
             "symbol": self.symbol,
             "market": market,
@@ -27,11 +53,74 @@ class RunLogger:
             "ts_start": int(ts_start),
             "ts_end": None,
             "hit_target": False,
+            # ← NUEVO: Contadores para análisis de actividad
+            "trades_count": 0,
+            "elapsed_steps": 0,
+            "reasons_counter": {},  # Contador de razones por las que no operó
+            "equity_min": float(initial_equity),
+            "bankruptcy_step": None,
+            "cumulative_reward": 0.0,
+            # ← NUEVO: Control de segmentos para soft reset
+            "segment_id": int(segment_id),
+            "soft_reset_count": 0,
         }
 
-    def finish(self, final_balance: float, final_equity: float, ts_end: int, bankruptcy: bool = False, penalty_reward: float = 0.0):
+    def update_trades_count(self, count: int):
+        """← NUEVO: Actualiza el contador de trades ejecutados"""
+        if self._active:
+            self._active["trades_count"] = count
+
+    def update_elapsed_steps(self, steps: int):
+        """← NUEVO: Actualiza el contador de pasos transcurridos"""
+        if self._active:
+            self._active["elapsed_steps"] = steps
+
+    def update_equity_min(self, equity_now: float):
+        if self._active:
+            self._active["equity_min"] = min(float(equity_now), float(self._active.get("equity_min", equity_now)))
+
+    def add_cumulative_reward(self, r: float):
+        if self._active:
+            self._active["cumulative_reward"] = float(self._active.get("cumulative_reward", 0.0)) + float(r)
+
+    def set_bankruptcy_step(self, step_idx: int):
+        if self._active:
+            self._active["bankruptcy_step"] = int(step_idx)
+
+    def add_reason(self, reason: str):
+        """← NUEVO: Añade una razón por la que no se operó"""
+        if self._active:
+            if "reasons_counter" not in self._active:
+                self._active["reasons_counter"] = {}
+            self._active["reasons_counter"][reason] = self._active["reasons_counter"].get(reason, 0) + 1
+
+    def add_trade_record(self, entry_price: float, exit_price: float, qty: float, side: int, 
+                        realized_pnl: float, bars_held: int, leverage_used: float = 3.0,
+                        open_ts: Optional[int] = None, close_ts: Optional[int] = None, 
+                        sl: Optional[float] = None, tp: Optional[float] = None, 
+                        roi_pct: float = 0.0, r_multiple: float = 0.0, risk_pct: float = 0.0):
+        """← NUEVO: Registra un trade cerrado para métricas profesionales"""
+        trade = TradeRecord(
+            entry_price=entry_price,
+            exit_price=exit_price,
+            qty=qty,
+            side=side,
+            realized_pnl=realized_pnl,
+            bars_held=bars_held,
+            leverage_used=leverage_used,
+            open_ts=open_ts,
+            close_ts=close_ts,
+            sl=sl,
+            tp=tp,
+            roi_pct=roi_pct,
+            r_multiple=r_multiple,
+            risk_pct=risk_pct
+        )
+        self._trade_metrics.add_trade(trade)
+
+    def finish(self, final_balance: float, final_equity: float, ts_end: int, bankruptcy: bool = False, penalty_reward: float = 0.0, soft_reset: bool = False, reset_count: int = 0):
         if not self._active:
-            print("⚠️ RunLogger.finish() llamado sin run activo")
+            print("WARNING: RunLogger.finish() llamado sin run activo")
             return
 
         # ← NUEVO: Validación de datos para prevenir duplicados
@@ -39,28 +128,54 @@ class RunLogger:
             print(f"🚫 Run ya finalizado, ignorando finish() duplicado")
             return
 
-        # ← NUEVO: Validación de episodios vacíos
+        # ← NUEVO: Validación mejorada de episodios vacíos
+        trades_count = self._active.get("trades_count", 0)
+        elapsed_steps = self._active.get("elapsed_steps", 0)
+        reasons_counter = self._active.get("reasons_counter", {})
+        
+        # ← CORREGIDO: Guardar todos los runs, incluso con pocos pasos
+        # Los runs cortos también proporcionan información valiosa sobre el aprendizaje
+        if trades_count == 0 and elapsed_steps < 10:  # Umbral reducido a 10 pasos
+            print(f"📊 Run corto sin trades - GUARDANDO para análisis:")
+            print(f"   - Trades: {trades_count}")
+            print(f"   - Pasos: {elapsed_steps}")
+            print(f"   - Razones: {reasons_counter}")
+            # NO retornar - continuar con el guardado del run
+
+        # ← NUEVO: Validación de episodios demasiado cortos
         ts_start = self._active.get("ts_start", 0)
         if ts_end - ts_start < 1000:  # Menos de 1 segundo
             print(f"🚫 Episodio demasiado corto ({ts_end - ts_start}ms) - NO se loguea")
+            print(f"   - Trades: {trades_count}, Pasos: {elapsed_steps}")
             self._active = None
             return
 
-        # ← NUEVO: Validación de actividad real
-        initial_balance = self._active.get("initial_balance", 0.0)
-        if abs(final_balance - initial_balance) < 0.01 and abs(final_equity - initial_balance) < 0.01:
-            print(f"🚫 Episodio sin actividad real (balance/equity sin cambios) - NO se loguea")
-            self._active = None
-            return
+        # ← CORREGIDO: Guardar todos los runs, incluso sin trades
+        # Los runs sin trades son válidos y proporcionan información valiosa sobre el aprendizaje
+        if trades_count == 0:
+            initial_balance = self._active.get("initial_balance", 0.0)
+            if abs(final_balance - initial_balance) < 0.01 and abs(final_equity - initial_balance) < 0.01:
+                print(f"📊 Run sin trades (balance/equity sin cambios) - GUARDANDO para análisis")
+                print(f"   - Trades: {trades_count}, Pasos: {elapsed_steps}")
+                print(f"   - Razones: {reasons_counter}")
+                # NO retornar - continuar con el guardado del run
 
         self._active["final_balance"] = float(final_balance)
         self._active["final_equity"] = float(final_equity)
         self._active["ts_end"] = int(ts_end)
         self._active["hit_target"] = final_balance >= self._active["target_balance"]
         
-        # ← NUEVO: información de quiebra
+        # ← NUEVO: Calcular métricas profesionales de trades
+        trade_metrics = self._trade_metrics.calculate_metrics()
+        self._active.update(trade_metrics)
+        
+        # ← NUEVO: información de quiebra y soft reset
         self._active["bankruptcy"] = bankruptcy
-        if bankruptcy:
+        self._active["soft_reset"] = soft_reset
+        if soft_reset:
+            self._active["soft_reset_count"] = reset_count
+            self._active["run_result"] = "SOFT_RESET"
+        elif bankruptcy:
             self._active["penalty_reward"] = float(penalty_reward)
             self._active["drawdown_pct"] = ((final_equity - self._active["initial_equity"]) / self._active["initial_equity"]) * 100.0
             self._active["run_result"] = "BANKRUPTCY"
@@ -73,7 +188,7 @@ class RunLogger:
             self._active = None
             return
 
-        # ← NUEVO: Sistema de rotación FIFO con límite de 400 runs
+        # ← NUEVO: Sistema de rotación FIFO con límite configurable
         self._add_run_with_rotation(self._active)
 
         # Actualizar snapshot maestro
@@ -83,8 +198,8 @@ class RunLogger:
         self._active = None
 
     def _add_run_with_rotation(self, run_data: Dict[str, Any]):
-        """Añade un nuevo run con rotación FIFO, manteniendo máximo 400 runs"""
-        MAX_RUNS = 400
+        """Añade un nuevo run con rotación FIFO, manteniendo máximo configurable de runs"""
+        MAX_RUNS = self.max_records
         
         # ← NUEVO: Validación anti-duplicados
         if self._is_duplicate_run(run_data):
@@ -103,8 +218,11 @@ class RunLogger:
                     except Exception:
                         continue
         
+        # Añadir timestamps UTC legibles al run
+        run_data_with_utc = add_utc_timestamps(run_data)
+        
         # Añadir el nuevo run
-        existing_runs.append(run_data)
+        existing_runs.append(run_data_with_utc)
         
         # Si excede el límite, eliminar los más antiguos (FIFO)
         if len(existing_runs) > MAX_RUNS:
@@ -118,9 +236,10 @@ class RunLogger:
         # Reescribir el archivo completo
         with self.runs_file.open("w", encoding="utf-8") as f:
             for run in existing_runs:
-                f.write(json.dumps(run, ensure_ascii=False) + "\n")
+                converted_run = _convert_numpy_types(run)
+                f.write(json.dumps(converted_run, ensure_ascii=False) + "\n")
         
-        print(f"✅ Run añadido: balance {run_data['final_balance']:.2f}, equity {run_data['final_equity']:.2f}")
+        print(f"OK Run añadido: balance {run_data['final_balance']:.2f}, equity {run_data['final_equity']:.2f}")
         print(f"   Total runs en archivo: {len(existing_runs)}/{MAX_RUNS}")
     
     def _is_duplicate_run(self, new_run: Dict[str, Any]) -> bool:
@@ -180,12 +299,12 @@ class RunLogger:
             return False
             
         except Exception as e:
-            print(f"⚠️ Error en detección de duplicados: {e}")
+            print(f"WARNING: Error en detección de duplicados: {e}")
             return False  # En caso de error, permitir el run
 
     def cleanup_existing_runs(self):
-        """Limpia el archivo existente aplicando el límite de 400 runs (mantiene los más recientes)"""
-        MAX_RUNS = 400
+        """Limpia el archivo existente aplicando el límite configurable de runs (mantiene los más recientes)"""
+        MAX_RUNS = self.max_records
         
         if not self.runs_file.exists():
             return
@@ -200,7 +319,7 @@ class RunLogger:
                     continue
         
         if len(existing_runs) <= MAX_RUNS:
-            print(f"✅ Archivo ya está dentro del límite: {len(existing_runs)}/{MAX_RUNS} runs")
+            print(f"OK Archivo ya está dentro del límite: {len(existing_runs)}/{MAX_RUNS} runs")
             return
         
         # Mantener solo los últimos MAX_RUNS runs
@@ -210,7 +329,8 @@ class RunLogger:
         # Reescribir el archivo
         with self.runs_file.open("w", encoding="utf-8") as f:
             for run in existing_runs:
-                f.write(json.dumps(run, ensure_ascii=False) + "\n")
+                converted_run = _convert_numpy_types(run)
+                f.write(json.dumps(converted_run, ensure_ascii=False) + "\n")
         
         print(f"🧹 Limpieza aplicada: eliminados {runs_to_remove} runs antiguos")
         print(f"   Archivo ahora contiene: {len(existing_runs)}/{MAX_RUNS} runs más recientes")
@@ -239,4 +359,20 @@ class RunLogger:
             "progress_pct": round((best_balance / last.get("target_balance", 1)) * 100, 2) if last else 0.0,
         }
 
-        self.progress_file.write_text(json.dumps(progress, ensure_ascii=False, indent=2), encoding="utf-8")
+        converted_progress = _convert_numpy_types(progress)
+        self.progress_file.write_text(json.dumps(converted_progress, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    def update_cumulative_reward(self, reward: float):
+        """← NUEVO: Actualiza el reward acumulado"""
+        if self._active:
+            self._active["cumulative_reward"] = float(reward)
+
+    def update_segment_id(self, segment_id: int):
+        """← NUEVO: Actualiza el ID del segmento actual"""
+        if self._active:
+            self._active["segment_id"] = int(segment_id)
+
+    def update_soft_reset_count(self, count: int):
+        """← NUEVO: Actualiza el contador de soft resets"""
+        if self._active:
+            self._active["soft_reset_count"] = int(count)

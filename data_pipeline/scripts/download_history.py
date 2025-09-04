@@ -4,8 +4,8 @@
 #   data/{SYMBOL}/raw/{tf}/year=YYYY/month=MM/part-YYYY-MM.parquet
 #
 # Uso (PowerShell/CMD, desde la raíz del repo):
-#   python data_pipeline\scripts\download_history.py --symbol BTCUSDT --market spot --tfs 1m,5m,15m,1h,4h,1d --months 6
-#   python data_pipeline\scripts\download_history.py --symbol ETHUSDT --market futures --tfs 1m,5m --months 6
+#   python data_pipeline\scripts\download_history.py --symbol BTCUSDT --market spot --tfs 1m,5m,15m,1h,4h,1d --months 36
+#   python data_pipeline\scripts\download_history.py --symbol ETHUSDT --market futures --tfs 1m,5m --months 36
 #
 # Requisitos:
 #   pip install requests pyarrow pandas python-dateutil
@@ -27,6 +27,7 @@ from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timezone
 import requests
 import pandas as pd
+import yaml
 
 try:
     import pyarrow as pa
@@ -36,6 +37,13 @@ except Exception as e:
     raise
 
 from dateutil.relativedelta import relativedelta
+
+# Importar collector de Bitget
+try:
+    from data_pipeline.collectors.bitget_futures_collector import create_bitget_collector
+except ImportError:
+    print("WARNING: No se pudo importar Bitget collector. Solo Binance disponible.", file=sys.stderr)
+    create_bitget_collector = None
 
 
 BINANCE_SPOT_BASE = "https://api.binance.com"
@@ -75,6 +83,27 @@ HEADERS = {
 }
 
 
+def load_exchange_config() -> str:
+    """
+    Carga la configuración de exchange desde config/settings.yaml.
+    
+    Returns:
+        Nombre del exchange configurado (binance, bitget, etc.)
+    """
+    try:
+        settings_path = Path("config/settings.yaml")
+        if settings_path.exists():
+            with open(settings_path, 'r') as f:
+                settings = yaml.safe_load(f)
+                return settings.get("exchange", "binance")
+        else:
+            print("WARNING: config/settings.yaml no encontrado. Usando Binance por defecto.", file=sys.stderr)
+            return "binance"
+    except Exception as e:
+        print(f"WARNING: Error cargando config/settings.yaml: {e}. Usando Binance por defecto.", file=sys.stderr)
+        return "binance"
+
+
 def to_ms(dt: datetime) -> int:
     return int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
 
@@ -97,6 +126,46 @@ def month_range_utc(now_utc: datetime, months_back: int) -> List[Tuple[datetime,
     return out
 
 
+def bitget_klines(
+    symbol: str,
+    interval: str,
+    start_ms: int,
+    end_ms: int,
+    market: str = "futures",
+    limit: int = 1000,
+    max_retries: int = 5,
+    pause_sec: float = 0.1,
+) -> List[List]:
+    """
+    Descarga klines desde Bitget usando el collector.
+    """
+    if create_bitget_collector is None:
+        raise ImportError("Bitget collector no disponible")
+    
+    collector = create_bitget_collector()
+    data = collector.fetch_ohlcv(symbol, interval, start_ms, end_ms, limit, max_retries, pause_sec)
+    
+    # Convertir a formato compatible con binance_klines
+    klines = []
+    for record in data:
+        klines.append([
+            record["ts"],           # 0: open time
+            record["open"],         # 1: open
+            record["high"],         # 2: high
+            record["low"],          # 3: low
+            record["close"],        # 4: close
+            record["volume"],       # 5: volume
+            record["ts"] + 60000,   # 6: close time (estimado)
+            record.get("quote_volume", 0.0),  # 7: quote volume
+            0,                      # 8: trades count (no disponible)
+            0,                      # 9: taker buy base volume
+            0,                      # 10: taker buy quote volume
+            0                       # 11: ignore
+        ])
+    
+    return klines
+
+
 def binance_klines(
     symbol: str,
     interval: str,
@@ -105,7 +174,7 @@ def binance_klines(
     market: str = "spot",
     limit: int = 1000,
     max_retries: int = 5,
-    pause_sec: float = 0.25,
+    pause_sec: float = 0.5,
 ) -> List[List]:
     """
     Descarga klines paginando hasta cubrir [start_ms, end_ms].
@@ -128,7 +197,7 @@ def binance_klines(
 
         for attempt in range(1, max_retries + 1):
             try:
-                r = requests.get(base + endpoint, params=params, headers=HEADERS, timeout=15)
+                r = requests.get(base + endpoint, params=params, headers=HEADERS, timeout=60)
                 if r.status_code == 429:
                     # rate limit
                     time.sleep(pause_sec * attempt)
@@ -147,10 +216,11 @@ def binance_klines(
                     cursor = cursor + 1
                 else:
                     cursor = last_close_ms
-                # Rate limit suave
+                # Rate limit suave - pausa más larga para evitar bloqueos
                 time.sleep(pause_sec)
                 break
             except Exception as e:
+                print(f"[WARN] Intento {attempt}/{max_retries} falló: {type(e).__name__}: {e}")
                 if attempt == max_retries:
                     raise
                 time.sleep(pause_sec * attempt)
@@ -240,6 +310,7 @@ def download_month_for_tf(
     tf: str,
     month_start_utc: datetime,
     month_end_utc: datetime,
+    exchange: str = "binance",
     limit_per_req: int = 1000,
 ) -> Optional[Path]:
     """
@@ -249,14 +320,26 @@ def download_month_for_tf(
     start_ms = to_ms(month_start_utc)
     end_ms = to_ms(month_end_utc)
 
-    kl = binance_klines(
-        symbol=symbol,
-        interval=interval,
-        start_ms=start_ms,
-        end_ms=end_ms,
-        market=market,
-        limit=limit_per_req,
-    )
+    # Usar el exchange correcto
+    if exchange == "bitget" and market == "futures":
+        kl = bitget_klines(
+            symbol=symbol,
+            interval=interval,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            market=market,
+            limit=limit_per_req,
+        )
+    else:
+        kl = binance_klines(
+            symbol=symbol,
+            interval=interval,
+            start_ms=start_ms,
+            end_ms=end_ms,
+            market=market,
+            limit=limit_per_req,
+        )
+    
     df = klines_to_df(symbol, market, tf, kl)
     if df.empty:
         return None
@@ -269,8 +352,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--symbol", type=str, required=True, help="Símbolo (ej. BTCUSDT)")
     p.add_argument("--market", type=str, choices=["spot", "futures"], required=True, help="Mercado: spot | futures")
     p.add_argument("--tfs", type=str, default="1m,5m,15m,1h,4h,1d", help="TFs separados por coma (soportados: 1m,5m,15m,1h,4h,1d)")
-    p.add_argument("--months", type=int, default=6, help="Meses hacia atrás (incluyendo el mes actual parcial)")
+    p.add_argument("--months", type=int, default=36, help="Meses hacia atrás (incluyendo el mes actual parcial)")
     p.add_argument("--since", type=str, default=None, help="ISO8601 (UTC) opcional para iniciar (e.g., 2024-03-01T00:00:00Z). Ignora --months si se usa.")
+    p.add_argument("--max-months", type=int, default=None, help="Límite máximo de meses a descargar (útil para pruebas)")
     return p.parse_args()
 
 
@@ -279,6 +363,10 @@ def main() -> None:
     root = Path(args.root)
     symbol = args.symbol.upper()
     market = args.market.lower()
+    
+    # Cargar configuración de exchange
+    exchange = load_exchange_config()
+    print(f"[INFO] Usando exchange: {exchange}")
     
     # Debug: mostrar qué se está parseando
     print(f"[DEBUG] args.tfs raw: '{args.tfs}'")
@@ -312,15 +400,25 @@ def main() -> None:
             cursor = next_m
     else:
         months = month_range_utc(now_utc, args.months)
+    
+    # Aplicar límite máximo si se especifica
+    if args.max_months and len(months) > args.max_months:
+        print(f"[INFO] Limitando descarga a {args.max_months} meses (de {len(months)} disponibles)")
+        months = months[:args.max_months]
 
-    print(f"[INFO] Descargando {symbol} ({market}) TFs={tfs} meses={len(months)} → raíz={root}")
+    total_tasks = len(tfs) * len(months)
+    completed_tasks = 0
+    
+    print(f"[INFO] Descargando {symbol} ({market}) desde {exchange} TFs={tfs} meses={len(months)} → raíz={root}")
+    print(f"[INFO] Total de tareas: {total_tasks}")
 
     for tf in tfs:
         for (m_start, m_end) in months:
             y, m = m_start.year, m_start.month
-            print(f"[INFO] {symbol} {market} {tf} {y}-{m:02d} ...", end=" ", flush=True)
+            completed_tasks += 1
+            print(f"[INFO] [{completed_tasks}/{total_tasks}] {symbol} {market} {tf} {y}-{m:02d} ...", end=" ", flush=True)
             try:
-                out = download_month_for_tf(root, symbol, market, tf, m_start, m_end)
+                out = download_month_for_tf(root, symbol, market, tf, m_start, m_end, exchange)
                 if out is None:
                     print("sin datos")
                 else:

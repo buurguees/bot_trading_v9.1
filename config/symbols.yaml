@@ -3,29 +3,30 @@
 # Ubicación: config/symbols.yaml
 # La consume base_env (filtros, tf habilitados) y los data loaders (descarga/validación de histórico).
 symbols:
+  # ← DESACTIVADO: Solo entrenar futuros por ahora
+  # - symbol: BTCUSDT
+  #   mode: train_spot
+  #   history_years: 5   # ← NUEVO: Años de histórico requeridos
+  #   enabled_tfs: ["1m","5m","15m","1h"]
+  #   allow_shorts: true  # ← NUEVO: Habilitar shorts en spot (margen)
+  #   filters:
+  #     tickSize: 0.1
+  #     lotStep: 0.0001
+  #     minNotional: 1.0  # ← REDUCIDO: De 5.0 a 1.0 para permitir órdenes más pequeñas
+  
+  # ← ACTIVO: Configuración para FUTUROS con leverage dinámico
   - symbol: BTCUSDT
-    mode: train_spot
-    enabled_tfs: ["1m","5m"]
+    mode: train_futures
+    history_years: 5
+    enabled_tfs: ["1m","5m","15m","1h"]
+    allow_shorts: true
+    filters:
+      tickSize: 0.1
+      lotStep: 0.0001
+      minNotional: 5.0  # ← CORREGIDO: minNotional real de Bitget para BTCUSDT futures
     leverage:
       min: 2.0
       max: 25.0
       step: 1.0
-      default: 5.0
-    filters:
-      tickSize: 0.1
-      lotStep: 0.0001
-      minNotional: 5.0
-
-# - name: ETHUSDT
-#    mode: train_futures
-#    enabled: true
-#    enabled_tfs: ["1m","5m","15m","1h","4h","1d"]
-#    leverage:
-#      min: 2.0       # mínimo permitido por YAML
-#      max: 25.0      # máximo permitido por YAML
-#      step: 1.0      # granularidad (1x -> niveles enteros). Cambia aquí sin tocar .py
-#      default: 5.0   # valor de arranque (sólo inicial; luego el agente decide)
-#    filters:
-#      tickSize: 0.01
-#      lotStep: 0.001
-#      minNotional: 5.0
+      default: 3.0                   # ← AUMENTADO: De 2.0 a 3.0 para más flexibilidad
+      dynamic: true                  # ← NUEVO: Permitir que el bot elija leverage dinámicamente

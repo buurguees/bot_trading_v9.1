@@ -3,21 +3,16 @@ log_dir: "logs/ppo_v1"
 
 data:
   root: "data"
-  symbols:
-    - name: "BTCUSDT"
-      mode: "train_spot"     # opciones: train_spot | train_futures | backtest | live_spot | live_futures
-      leverage: 1.0          # para spot (siempre 1.0x)
-  market: "spot"             # default global si no se define por símbolo
   stage: "aligned"
   tfs: ["1m","5m","15m","1h"]
-  months_back: 60
+  months_back: 36
 
 env:
-  n_envs: 4
-  episode_length: 1825  # 5 años en días
-  max_steps_per_episode: 1825000  # 5 años * 1000 steps/día
-  warmup_bars: 2000
-  startup_cooldown_steps: 0  # desactiva cooldown de arranque
+  n_envs: 4  # ← AJUSTADO: 4-8 según RAM (si OOM, bajar a 4)
+  episode_length: 365   # ← REDUCIDO: 1 año en días para episodios más manejables
+  max_steps_per_episode: 365000  # ← REDUCIDO: 1 año * 1000 steps/día
+  warmup_bars: 5000         # ← AUMENTADO: Más contexto para evitar SLs prematuros
+  startup_cooldown_steps: 0  # ← MANTENIDO: Permitir abrir desde inicio
   antifreeze:
     enabled: false           # desactiva curriculum/antifreeze
   reward_yaml: "config/rewards.yaml"
@@ -26,34 +21,31 @@ env:
   target_balance: 1000000.0
 
 ppo:
-  total_timesteps: 50000000  # ← NUEVO: 50M steps para entrenamiento largo
+  total_timesteps: 50000000  # ← CORREGIDO: 50M steps para entrenamiento largo
   n_steps: 2048
-  batch_size: 8192
-  learning_rate: 3.0e-4      # ✅ Learning rate óptimo
+  batch_size: 4096  # ← AJUSTADO: Si 8 envs consume mucha RAM, usar 4096
+  learning_rate: 3.0e-4      # ✅ Learning rate inicial
   gamma: 0.999               # ✅ Descuento alto para largo plazo
   gae_lambda: 0.95           # ✅ GAE estable
-  clip_range: 0.2            # ✅ Clipping estándar
-  ent_coef: 0.1              # ✅ ENTROPÍA AUMENTADA para más exploración
+  clip_range: 0.3            # ← AUMENTADO: Menos restrictivo para más exploración
+  ent_coef: 0.02             # ← AUMENTADO: Más entropía para fomentar exploración inicial
   vf_coef: 0.5               # ✅ Valor function
   n_epochs: 4                # ✅ Epochs estándar
   tensorboard_log: "logs/tb"
   
+  # ← NUEVO: Learning rate annealing activo
+  anneal_lr: true            # ← NUEVO: Activar annealing de learning rate
+  
   # ← NUEVO: Parámetros anti-congelamiento mejorados
   max_grad_norm: 0.5         # ✅ Previene gradientes explosivos
   target_kl: 0.01            # ✅ Early stopping si KL diverge
-  anneal_lr: true            # ✅ Learning rate annealing
-  lr_schedule: "linear"      # ✅ Schedule lineal para 50M steps
   
   # ← NUEVO: Parámetros adicionales para evitar bloqueo
   policy_kwargs:
     net_arch: [256, 256]     # ✅ Red más grande para mayor capacidad
     activation_fn: "tanh"    # ✅ Función de activación estable
 
-  # ← NUEVO: Control del reset de learning rate (cooldown del callback)
-  lr_reset:
-    enabled: false           # desactiva el callback de reset de LR (sin mensajes de cooldown)
-    threshold_runs: 30       # umbral si se activa
-    cooldown_steps: 5000     # cooldown si se activa
+
 
 # Ruta y política de modelos/estrategias por símbolo
 models:
@@ -65,3 +57,18 @@ models:
 logging:
   run_dir: "logs/runs"    # logs de balance/equity por run
   checkpoint_every_steps: 500000  # ← NUEVO: checkpoints cada 500k steps para 50M total
+  train_verbosity: low   # ← NUEVO: valores: low / medium / high
+  # low: solo guardar métricas/logs cada 1000 steps
+  # medium: cada 100 steps  
+  # high: cada paso (debug)
+
+# ← NUEVO: Configuración de métricas de entrenamiento en tiempo real
+metrics:
+  enable: true                    # habilitar callback de métricas
+  interval: 2048                  # cada cuántos timesteps guardar snapshot
+  path_pattern: "models/{symbol}/{symbol}_train_metrics.jsonl"
+
+# ← NUEVO: Configuración de retención de runs
+runs_log:
+  max_records: 2000               # límite de runs guardados (antes era 400)
+  prune_strategy: "fifo"          # eliminar los más antiguos cuando exceda
