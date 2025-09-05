@@ -55,3 +55,7 @@ class InMemoryBroker:
             if bar is not None:
                 out[tf] = bar
         return out
+    
+    def is_end_of_data(self) -> bool:
+        """Verifica si se ha llegado al final de los datos"""
+        return self._i >= len(self._keys) - 1

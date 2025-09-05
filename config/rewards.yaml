@@ -119,8 +119,8 @@ holding_rewards:
 
 # === Sistema de penalties por Inactividad ===
 inactivity_penalties:
-  enabled: true
-  inactivity_penalty: -0.01   # Penalty por no abrir trades
+  enabled: false              # ← DESACTIVADO: No penalizar inactividad al inicio
+  inactivity_penalty: 0.0     # Penalty por no abrir trades
   penalty_interval: 100       # Cada N pasos sin abrir trade
 
 # === Sistema de penalties por Trades Bloqueados ===
@@ -195,8 +195,8 @@ overtrading_penalty:
 
 # Neutral de expiración por TTL
 ttl_expiry:
-  enabled: true
-  neutral_penalty: 0.05  # sale por TTL sin SL/TP
+  enabled: false              # ← DESACTIVADO: No penalizar TTL al inicio
+  neutral_penalty: 0.0        # sale por TTL sin SL/TP
 
 # Exploración acotada de leverage/timeframe
 exploration_bonus:
@@ -212,7 +212,7 @@ clipping:
 
 # Bonus/malus por razón del cierre (se suman al tramo ROI)
 bonuses:
-  ttl_hit: -0.3   # si se cierra por TTL (timeout)
+  ttl_hit: 0.0    # ← DESACTIVADO: No penalizar TTL al inicio
 
 # === Sistema de rewards por duración del trade (bars_held) ===
 duration_rewards:
@@ -273,3 +273,57 @@ timeframe_config:
 
 # Clipping final del reward por step
 reward_clip: [-5.0, 5.0]
+
+# === OBJETIVO DE ACTIVIDAD: ~ 1 trade/día (≈ 1440 barras si TF=1m) ===
+trade_activity_daily:
+  enabled: true
+  tf_minutes: 1            # TF de ejecución (para convertir a "día" = 1440 barras)
+  target_trades_per_day: 1 # objetivo: 1 trade por día
+  warmup_days: 3           # ← REDUCIDO: Menos warmup para empezar a penalizar antes
+  bonus_per_trade: 0.05    # ← AUMENTADO: Más incentivo por trade
+  shortfall_penalty: 0.08  # ← AUMENTADO: Más penalización por no hacer trades
+  overtrade_penalty: 0.03  # ← AUMENTADO: Más penalización por exceso
+  max_daily_bonus: 0.08    # ← AUMENTADO: Cap más alto para bonus
+  max_daily_penalty: -0.08 # ← AUMENTADO: Cap más alto para penalizaciones
+  decay_after_hit: 0.3     # ← REDUCIDO: Menos decay para mantener incentivo
+
+# === PENALIZACIÓN SUAVE POR INACTIVIDAD PROLONGADA (resetea al abrir) ===
+inactivity_escalator:
+  enabled: true
+  start_after_bars: 720    # empieza a contar tras 12h sin operar (si TF=1m)
+  step_every_bars: 180     # añade pequeña penalización cada 3h extra
+  step_penalty: -0.002     # muy suave; PPO lo nota sin hundir señal
+  max_penalty: -0.04       # límite diario
+
+# === BONUS POR CALIDAD DE APERTURA (para que no abra por abrir) ===
+quality_open_bonus:
+  enabled: true
+  mtf_agree_bonus: 0.01    # si confluye con HTF (1h/4h)
+  spread_cost_cap_bps: 2   # si coste implícito bajo, pequeño bonus
+  min_sl_to_atr: 1.0       # SL >= 1.0*ATR → mejor calidad
+  bonus: 0.01
+  per_trade_cap: 0.02
+
+# === ANTI-PING-PONG (evita alternar L/S en muy pocas barras) ===
+anti_flip_penalty:
+  enabled: true
+  window_bars: 30          # si flip dentro de 30 barras
+  penalty: -0.01           # pequeño castigo por flip inmediato
+  ignore_if_profit_tp: true  # no penalizar si el flip viene tras TP
+
+# === REWARD POR SEGUIR SEÑALES DE POLÍTICA ===
+policy_signal_reward:
+  enabled: true
+  # Reward por abrir cuando la política dice que debe abrir
+  follow_signal_bonus: 0.05
+  # Penalty por no abrir cuando la política dice que debe abrir
+  ignore_signal_penalty: -0.02
+  # Bonus por cerrar cuando la política dice que debe cerrar
+  follow_close_signal_bonus: 0.03
+  # Penalty por mantener cuando la política dice que debe cerrar
+  ignore_close_signal_penalty: -0.01
+
+# === CLIPPING GLOBAL (por step y por evento de cierre) ===
+clipping:
+  per_step: [-0.15, 0.15]
+  per_close_event: [-1.0, 1.5]

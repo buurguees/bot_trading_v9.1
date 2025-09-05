@@ -36,6 +36,10 @@ from .overtrading_penalty import OvertradingPenalty
 from .ttl_expiry_penalty import TTLExpiryPenalty
 from .exploration_bonus import ExplorationBonus
 
+# Nuevos módulos de reward shaping
+from collections import deque, defaultdict
+import numpy as np
+
 
 class RewardOrchestrator:
     """Orquestador principal del sistema de rewards/penalties"""
@@ -87,6 +91,17 @@ class RewardOrchestrator:
         
         # Contador de steps
         self.current_step = 0
+        
+        # Estado para nuevos módulos de reward shaping
+        self._bars_since_last_trade = 0
+        self._current_day_key = None
+        self._trades_today = 0
+        self._daily_bonus_accum = 0.0
+        self._daily_penalty_accum = 0.0
+        self._last_side = 0
+        self._last_close_ts = None
+        self._last_event = None
+        self._rollover_reward = 0.0
     
     def initialize_run(self, initial_balance: float, target_balance: float):
         """
@@ -112,6 +127,176 @@ class RewardOrchestrator:
     def _clip(self, r: float) -> float:
         """Aplica clipping al reward"""
         return max(self.clip_lo, min(self.clip_hi, r))
+    
+    def _day_key(self, info: Dict[str, Any], cfg: Dict[str, Any]) -> int:
+        """Calcula la clave del día lógico"""
+        ts = int(info.get("bar_time", 0))  # ms
+        minutes = int(cfg.get("tf_minutes", 1))
+        day_len_ms = 60_000 * 60 * 24
+        return ts - (ts % day_len_ms)
+    
+    def _on_new_bar(self, info: Dict[str, Any]):
+        """Llamado en cada step"""
+        self._bars_since_last_trade += 1
+    
+    def _trade_activity_daily_reward(self, info: Dict[str, Any], is_close_event: bool) -> float:
+        """Módulo de actividad diaria de trades"""
+        c = self.config.get("trade_activity_daily", {})
+        if not c.get("enabled", False):
+            return 0.0
+
+        # día actual
+        day_key = self._day_key(info, c)
+        if self._current_day_key is None:
+            self._current_day_key = day_key
+            self._trades_today = 0
+            self._daily_bonus_accum = 0.0
+            self._daily_penalty_accum = 0.0
+        elif day_key != self._current_day_key:
+            # día nuevo: aplicar penalizaciones del día anterior
+            target = max(1, int(c.get("target_trades_per_day", 1)))
+            warmup_days = int(c.get("warmup_days", 7))
+            shortfall_penalty = float(c.get("shortfall_penalty", 0.04))
+            overtrade_penalty = float(c.get("overtrade_penalty", 0.02))
+            max_p = float(c.get("max_daily_penalty", -0.05))
+            
+            if self._trades_today < target and warmup_days <= 0:
+                missing = target - self._trades_today
+                pen = -shortfall_penalty * (missing / target)
+                pen = max(max_p, pen)
+                self._daily_penalty_accum += pen
+                self._rollover_reward = pen
+            elif self._trades_today > target:
+                excess = self._trades_today - target
+                pen = -overtrade_penalty * (excess / target)
+                pen = max(max_p, pen)
+                self._daily_penalty_accum += pen
+                self._rollover_reward = pen
+            else:
+                self._rollover_reward = 0.0
+            
+            # reset day counters
+            self._current_day_key = day_key
+            self._trades_today = 0
+            self._daily_bonus_accum = 0.0
+            self._daily_penalty_accum = 0.0
+
+        target = max(1, int(c.get("target_trades_per_day", 1)))
+        bonus_per_trade = float(c.get("bonus_per_trade", 0.03))
+        max_b = float(c.get("max_daily_bonus", 0.05))
+        decay_after_hit = float(c.get("decay_after_hit", 0.5))
+
+        r = 0.0
+
+        # bonus por trade cuando ocurre el CIERRE exitoso
+        if is_close_event:
+            b = bonus_per_trade
+            if self._trades_today >= target:
+                b *= decay_after_hit
+            # acumula con cap diario
+            if self._daily_bonus_accum + b > max_b:
+                b = max(0.0, max_b - self._daily_bonus_accum)
+            self._daily_bonus_accum += b
+            self._trades_today += 1
+            r += b
+
+        # aplicar rollover reward del día anterior (una sola vez)
+        if self._rollover_reward != 0.0:
+            r += self._rollover_reward
+            self._rollover_reward = 0.0
+
+        return float(r)
+    
+    def _inactivity_escalator(self) -> float:
+        """Penalización escalonada por inactividad"""
+        c = self.config.get("inactivity_escalator", {})
+        if not c.get("enabled", False):
+            return 0.0
+        start = int(c.get("start_after_bars", 720))
+        step_every = int(c.get("step_every_bars", 180))
+        step_pen = float(c.get("step_penalty", -0.002))
+        cap = float(c.get("max_penalty", -0.04))
+
+        if self._bars_since_last_trade < start:
+            return 0.0
+        steps = (self._bars_since_last_trade - start) // step_every + 1
+        r = steps * step_pen
+        return float(max(cap, r))
+    
+    def _quality_open_bonus(self, info: Dict[str, Any]) -> float:
+        """Bonus por calidad de apertura"""
+        c = self.config.get("quality_open_bonus", {})
+        if not c.get("enabled", False):
+            return 0.0
+        if info.get("event") != "OPEN":
+            return 0.0
+
+        b = 0.0
+        if info.get("mtf_agree", False):
+            b += float(c.get("mtf_agree_bonus", 0.01))
+        if float(info.get("spread_cost_bps", 99)) <= float(c.get("spread_cost_cap_bps", 2)):
+            b += float(c.get("bonus", 0.01))
+        if float(info.get("sl_to_atr", 0.0)) >= float(c.get("min_sl_to_atr", 1.0)):
+            b += float(c.get("bonus", 0.01))
+
+        cap = float(c.get("per_trade_cap", 0.02))
+        return float(min(b, cap))
+    
+    def _anti_flip_penalty(self, info: Dict[str, Any]) -> float:
+        """Penalización anti-ping-pong"""
+        c = self.config.get("anti_flip_penalty", {})
+        if not c.get("enabled", False):
+            return 0.0
+        if info.get("event") != "OPEN":
+            return 0.0
+        side = int(np.sign(info.get("position_side", 0)))
+        pen = 0.0
+        if self._last_close_ts is not None and side != 0 and self._last_side != 0 and side != self._last_side:
+            # flip
+            bars = int(info.get("bars_since_last_close", 1e9))
+            if bars <= int(c.get("window_bars", 30)):
+                if not (c.get("ignore_if_profit_tp", True) and self._last_event == "TP"):
+                    pen = float(c.get("penalty", -0.01))
+        return float(pen)
+    
+    def _policy_signal_reward(self, obs: Dict[str, Any], events: List[Dict[str, Any]]) -> float:
+        """Reward por seguir las señales de la política"""
+        c = self.config.get("policy_signal_reward", {})
+        if not c.get("enabled", False):
+            return 0.0
+        
+        reward = 0.0
+        
+        # Obtener información de la política
+        policy_signal = obs.get("policy_signal", {})
+        should_open = policy_signal.get("should_open", False)
+        side_hint = policy_signal.get("side_hint", 0)
+        confidence = policy_signal.get("confidence", 0.0)
+        
+        # Verificar si hay eventos de apertura
+        for event in events:
+            if event.get("event") == "OPEN":
+                # Reward por abrir cuando la política dice que debe abrir
+                if should_open and side_hint != 0:
+                    reward += float(c.get("follow_signal_bonus", 0.05))
+                    # Bonus adicional por alta confianza
+                    if confidence > 0.5:
+                        reward += 0.02
+                break
+        
+        # Penalty por no abrir cuando la política dice que debe abrir
+        if should_open and side_hint != 0 and not any(e.get("event") == "OPEN" for e in events):
+            reward += float(c.get("ignore_signal_penalty", -0.02))
+        
+        # Verificar señales de cierre
+        should_close = policy_signal.get("should_close", False)
+        for event in events:
+            if event.get("event") in ("TP", "SL", "CLOSE", "TTL"):
+                if should_close:
+                    reward += float(c.get("follow_close_signal_bonus", 0.03))
+                break
+        
+        return float(reward)
     
     def calculate_trade_reward(self, 
                              realized_pnl: float,
@@ -281,6 +466,9 @@ class RewardOrchestrator:
         # Incrementar contador de steps
         self.current_step += 1
         
+        # Llamar _on_new_bar para actualizar contadores
+        self._on_new_bar(obs)
+        
         # Obtener información del estado actual
         position = obs.get("position", {})
         portfolio = obs.get("portfolio", {})
@@ -288,6 +476,17 @@ class RewardOrchestrator:
         
         all_components = {}
         total_reward = base_reward
+        
+        # Detectar eventos de cierre para actualizar estado
+        is_close_event = False
+        for event in events:
+            if event.get("event") in ("TP", "SL", "CLOSE", "TTL"):
+                is_close_event = True
+                self._last_close_ts = int(obs.get("bar_time", 0))
+                self._last_event = event.get("event")
+                self._last_side = int(np.sign(event.get("closed_side", 0)))
+                self._bars_since_last_trade = 0
+                break
         
         # 1. Progress Milestone Rewards (una vez por run)
         milestone_reward, milestone_components = self.progress_milestone_reward.calculate_progress_milestone_reward(current_equity)
@@ -346,8 +545,39 @@ class RewardOrchestrator:
         total_reward += overtrading_penalty
         all_components.update(overtrading_components)
         
-        # Aplicar clipping
-        clipped_reward = self._clip(total_reward)
+        # 10. Nuevos módulos de reward shaping
+        # 10.1 Trade Activity Daily (objetivo ~1 trade/día)
+        trade_activity_reward = self._trade_activity_daily_reward(obs, is_close_event)
+        total_reward += trade_activity_reward
+        all_components["trade_activity_daily"] = trade_activity_reward
+        
+        # 10.2 Inactivity Escalator (penalización suave por inactividad)
+        inactivity_escalator_penalty = self._inactivity_escalator()
+        total_reward += inactivity_escalator_penalty
+        all_components["inactivity_escalator"] = inactivity_escalator_penalty
+        
+        # 10.3 Quality Open Bonus (solo en aperturas)
+        for event in events:
+            if event.get("event") == "OPEN":
+                quality_bonus = self._quality_open_bonus(event)
+                total_reward += quality_bonus
+                all_components["quality_open_bonus"] = quality_bonus
+                
+                # Anti-flip penalty (solo en aperturas)
+                anti_flip_penalty = self._anti_flip_penalty(event)
+                total_reward += anti_flip_penalty
+                all_components["anti_flip_penalty"] = anti_flip_penalty
+                break
+        
+        # 10.4 Policy Signal Reward (seguir señales de la política)
+        policy_signal_reward = self._policy_signal_reward(obs, events)
+        total_reward += policy_signal_reward
+        all_components["policy_signal_reward"] = policy_signal_reward
+        
+        # Aplicar clipping global
+        clipping_config = self.config.get("clipping", {})
+        per_step_clip = clipping_config.get("per_step", [-0.15, 0.15])
+        clipped_reward = max(per_step_clip[0], min(per_step_clip[1], total_reward))
         
         return clipped_reward, all_components
     
@@ -366,6 +596,17 @@ class RewardOrchestrator:
         self.progress_bonus.reset()
         self.blocked_trade_penalty.reset()
         self.current_step = 0
+        
+        # Resetear estado de nuevos módulos
+        self._bars_since_last_trade = 0
+        self._current_day_key = None
+        self._trades_today = 0
+        self._daily_bonus_accum = 0.0
+        self._daily_penalty_accum = 0.0
+        self._last_side = 0
+        self._last_close_ts = None
+        self._last_event = None
+        self._rollover_reward = 0.0
     
     def get_stats(self) -> Dict[str, Any]:
         """

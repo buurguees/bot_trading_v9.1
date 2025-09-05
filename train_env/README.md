@@ -132,13 +132,15 @@ Crea entornos vectorizados para entrenamiento paralelo.
 - **Chronological**: Opción de datos cronológicos vs aleatorios
 - **Warmup**: Barras de calentamiento antes del entrenamiento
 
-### ⏰ **vec_factory_chrono.py** - Factory Cronológica
-Versión especializada para entrenamiento con datos cronológicos.
+### ⏰ **vec_factory.py** - Factory Unificada
+Factory unificada que soporta tanto modo cronológico como modo simple.
 
-**Ventajas:**
-- **Realistic Training**: Entrenamiento más realista
-- **Temporal Consistency**: Consistencia temporal entre entornos
-- **Market Conditions**: Simula condiciones de mercado reales
+**Características:**
+- **Modo Cronológico**: Entrenamiento con datos históricos reales (ParquetHistoricalBroker)
+- **Modo Simple**: Entrenamiento sin broker explícito (fallback)
+- **Validaciones**: Verificación de datos suficientes para evitar episodios pobres
+- **Leverage**: Soporte automático para futuros con MultiDiscrete action space
+- **Logs de Estrategias**: Integración con curriculum learning
 
 ### 📈 **dataset.py** - Gestión de Datos
 Maneja la carga y preparación de datos para entrenamiento.
@@ -171,7 +173,7 @@ Combina múltiples estrategias o modelos para mejor performance.
 
 ### 1. **Configuración Básica**
 ```python
-from train_env.gym_wrapper import TradingGymWrapper
+from train_env.core.gym_wrapper import TradingGymWrapper
 from train_env.reward_shaper import RewardShaper
 from base_env.base_env import BaseTradingEnv
 

@@ -1,340 +1,278 @@
-# ===========================================
-# COMANDOS DEL SISTEMA BOT TRADING v9.1
-# ===========================================
-# 
-# Este archivo contiene todos los comandos necesarios para ejecutar
-# el sistema completo de trading con Reinforcement Learning.
-#
-# Fecha de creación: 2025-09-04
-# Versión: v9.1
-# ===========================================
+# 🤖 COMANDOS DEL SISTEMA - Bot Trading v9.1
 
-# ===========================================
-# 1. APLICACIÓN PRINCIPAL (app.py)
-# ===========================================
+## 🚀 **COMANDOS PRINCIPALES**
 
-# Ejecutar entrenamiento completo según configuración
-python app.py run
-# Descripción: Ejecuta el entrenamiento del bot según config/train.yaml
+### **1. VALIDACIÓN DEL SISTEMA**
+```bash
+# Validar configuración YAML y detectar duplicados
+python scripts/clean_yaml_duplicates.py
 
-# Ejecutar entrenamiento con interfaz gráfica
-python app.py run --gui
-# Descripción: Ejecuta entrenamiento + abre ventana de progreso equity/balance
+# Validar sistema de rewards completo
+python scripts/validate_rewards_system.py
 
-# Solo abrir interfaz gráfica de progreso
-python app.py gui
-# Descripción: Abre únicamente la ventana de monitoreo de progreso
+# Benchmark de rendimiento del sistema
+python scripts/benchmark_rewards.py
+```
 
-# Mostrar resumen de configuraciones
-python app.py config
-# Descripción: Muestra un resumen de todas las configuraciones YAML
-
-# ===========================================
-# 2. ENTRENAMIENTO Y MODELOS
-# ===========================================
-
-# Entrenar modelo PPO directamente
+### **2. ENTRENAMIENTO**
+```bash
+# Entrenamiento principal con PPO
 python scripts/train_ppo.py
-# Descripción: Entrena el modelo PPO con configuración por defecto
 
-# Ejecutar backtest rápido (smoke test)
-python scripts/backtest_smoke_from_aligned.py
-# Descripción: Ejecuta un backtest rápido para verificar funcionamiento
-
-# Ejecutar smoke run (prueba rápida)
-python scripts/smoke_run.py
-# Descripción: Ejecuta una prueba rápida del sistema sin entrenamiento completo
-
-# ===========================================
-# 3. MONITOREO Y PROGRESO
-# ===========================================
-
-# Monitorear progreso de entrenamiento
-python scripts/watch_progress.py
-# Descripción: Monitorea el progreso del entrenamiento en tiempo real
-
-# Mostrar progreso actual
-python scripts/show_progress.py
-# Descripción: Muestra el estado actual del entrenamiento
-
-# Monitorear acciones del agente
-python monitoring/monitor_actions.py
-# Descripción: Monitorea las acciones que toma el agente RL
-
-# Monitorear logs del sistema
-python monitoring/monitor_logs.py
-# Descripción: Monitorea y analiza los logs del sistema
-
-# Monitorear correcciones aplicadas
-python monitoring/monitor_fixes.py
-# Descripción: Monitorea las correcciones automáticas aplicadas
-
-# Monitorear entrenamiento (PowerShell)
-monitoring/monitor_training.ps1
-# Descripción: Script PowerShell para monitoreo completo del entrenamiento
+# Entrenamiento con monitoreo en tiempo real
+python monitoring/monitor_training.py
 
 # Iniciar entrenamiento (PowerShell)
-monitoring/start_training.ps1
-# Descripción: Script PowerShell para iniciar el entrenamiento
+.\monitoring\start_training.ps1
+```
 
-# ===========================================
-# 4. GESTIÓN DE DATOS HISTÓRICOS
-# ===========================================
+### **3. MODO AUTONOMÍA**
+```bash
+# Ejemplo de uso del modo autonomía total
+python scripts/example_autonomous_mode.py
 
-# Descargar datos históricos
-python data_pipeline/scripts/download_history.py
-# Descripción: Descarga datos históricos de OHLCV desde el exchange
+# Crear entorno autónomo desde YAML
+python -c "
+from base_env.base_env import BaseTradingEnv
+env = BaseTradingEnv.from_yaml_dir('config/', broker, oms)
+"
+```
 
-# Validar datos históricos
-python data_pipeline/scripts/validate_history.py
-# Descripción: Valida la integridad y orden de los datos históricos
+### **4. DESARROLLO Y TESTING**
+```bash
+# Ejecutar pruebas unitarias
+python -m pytest tests/unit/
 
-# Alinear paquetes de datos
-python data_pipeline/scripts/align_package.py
-# Descripción: Alinea los timeframes y genera paquetes de datos
+# Ejecutar pruebas de integración
+python -m pytest tests/integration/
 
-# Actualizar manifiesto de datos
-python data_pipeline/scripts/manifest_update.py
-# Descripción: Actualiza el manifiesto con metadatos de los datos
+# Ejecutar pruebas end-to-end
+python -m pytest tests/e2e/
 
-# ===========================================
-# 5. ANÁLISIS Y MÉTRICAS
-# ===========================================
+# Verificar tipos con mypy
+python -m mypy base_env/
+```
 
-# Verificar el mejor run
-python scripts/check_best_run.py
-# Descripción: Analiza y muestra el mejor run de entrenamiento
+## 🔧 **COMANDOS DE CONFIGURACIÓN**
 
-# Limpiar runs duplicados
-python scripts/clean_duplicate_runs.py
-# Descripción: Elimina runs duplicados del historial
+### **Configuración YAML**
+```bash
+# Validar consistencia de configuración
+python -c "
+from config.config_loader import validate_config
+problems = validate_config('config/')
+print(f'Problemas encontrados: {len(problems)}')
+"
 
-# ===========================================
-# 6. UTILIDADES Y DEBUGGING
-# ===========================================
+# Cargar configuración y mostrar resumen
+python -c "
+from config.config_loader import get_config_summary
+summary = get_config_summary('config/')
+print(f'Símbolo: {summary[\"symbol\"]}')
+print(f'Modo: {summary[\"mode\"]}')
+print(f'TFs: {summary[\"tfs\"]}')
+"
+```
 
-# Verificar estado del sistema
-python utils/check_status.py
-# Descripción: Verifica el estado general del sistema
+### **Sistema de Rewards**
+```bash
+# Validar sistema de rewards
+python -c "
+from base_env.actions.reward_orchestrator_optimized import OptimizedRewardOrchestrator
+orchestrator = OptimizedRewardOrchestrator('config/rewards_optimized.yaml')
+print('✅ Sistema de rewards funcionando')
+"
 
-# Debug detallado
-python utils/debug_detailed.py
-# Descripción: Ejecuta debugging detallado del sistema
+# Probar módulos individuales
+python -c "
+from base_env.actions.time_efficiency_reward import TimeEfficiencyReward
+from base_env.actions.reward_decomposition import RewardDecompositionNetwork
+print('✅ Módulos de rewards funcionando')
+"
+```
 
-# Corregir acciones RL
-python utils/fix_rl_actions.py
-# Descripción: Corrige problemas con las acciones del agente RL
+## 📊 **COMANDOS DE MONITOREO**
 
-# Reiniciar entrenamiento
-python utils/restart_training.py
-# Descripción: Reinicia el proceso de entrenamiento
+### **Rendimiento del Sistema**
+```bash
+# Monitorear acciones del sistema
+python monitoring/monitor_actions.py
 
-# Probar correcciones
-python utils/test_fix.py
-# Descripción: Prueba las correcciones aplicadas al sistema
+# Monitorear logs en tiempo real
+python monitoring/monitor_logs.py
 
-# Ejemplo de logs UTC
-python -m utils.example_utc_logs
-# Descripción: Muestra ejemplos de logs con timestamps UTC legibles
+# Monitorear correcciones automáticas
+python monitoring/monitor_fixes.py
+```
 
-# ===========================================
-# 7. TESTING Y VALIDACIÓN
-# ===========================================
+### **Análisis de Datos**
+```bash
+# Analizar progreso de entrenamiento
+python -c "
+from train_env.analysis.show_progress import show_training_progress
+show_training_progress('models/BTCUSDT/')
+"
 
-# Ejecutar todos los tests
-pytest tests/
-# Descripción: Ejecuta todos los tests unitarios del sistema
+# Verificar estado de modelos
+python -c "
+import os
+models = os.listdir('models/')
+print(f'Modelos disponibles: {models}')
+"
+```
 
-# Test específico de consistencia del ledger
-pytest tests/test_ledger_consistency.py
-# Descripción: Prueba la consistencia del sistema de contabilidad
+## 🛠️ **COMANDOS DE MANTENIMIENTO**
 
-# Test de lógica de rewards
-pytest tests/test_reward_logic.py
-# Descripción: Prueba la lógica del sistema de rewards
-
-# Test de métricas de runs
-pytest tests/test_run_metrics.py
-# Descripción: Prueba las métricas de los runs
-
-# Test de alineación sin duplicados
-pytest tests/test_align_no_dupes.py
-# Descripción: Prueba la alineación de timeframes sin duplicados
-
-# ===========================================
-# 8. COMANDOS DE DESARROLLO
-# ===========================================
-
-# Formatear código con Black
-black .
-# Descripción: Formatea todo el código Python según estándares
-
-# Linting con Ruff
-ruff check .
-# Descripción: Verifica el código con el linter Ruff
-
-# Verificación de tipos con MyPy
-mypy .
-# Descripción: Verifica los tipos de datos en el código
-
-# ===========================================
-# 9. COMANDOS DE GESTIÓN DE ENTORNO
-# ===========================================
-
-# Activar entorno virtual (Windows)
-venv\Scripts\activate
-# Descripción: Activa el entorno virtual de Python
-
-# Activar entorno virtual (Linux/Mac)
-source venv/bin/activate
-# Descripción: Activa el entorno virtual de Python
-
-# Instalar dependencias
-pip install -r requirements.txt
-# Descripción: Instala todas las dependencias del proyecto
-
-# Actualizar dependencias
-pip install -r requirements.txt --upgrade
-# Descripción: Actualiza todas las dependencias a las últimas versiones
-
-# ===========================================
-# 10. COMANDOS DE GESTIÓN DE DATOS
-# ===========================================
-
-# Verificar datos disponibles
-ls data/
-# Descripción: Lista los símbolos con datos disponibles
-
-# Verificar datos de un símbolo específico
-ls data/BTCUSDT/
-# Descripción: Lista los archivos de datos para BTCUSDT
-
-# Verificar modelos entrenados
-ls models/
-# Descripción: Lista los modelos entrenados disponibles
-
-# Verificar logs de entrenamiento
-ls logs/
-# Descripción: Lista los logs de entrenamiento
-
-# ===========================================
-# 11. COMANDOS DE CONFIGURACIÓN
-# ===========================================
-
-# Ver configuración de símbolos
-cat config/symbols.yaml
-# Descripción: Muestra la configuración de símbolos
-
-# Ver configuración de rewards
-cat config/rewards.yaml
-# Descripción: Muestra la configuración del sistema de rewards
-
-# Ver configuración de riesgo
-cat config/risk.yaml
-# Descripción: Muestra la configuración de gestión de riesgo
-
-# Ver configuración de entrenamiento
-cat config/train.yaml
-# Descripción: Muestra la configuración de entrenamiento
-
-# ===========================================
-# 12. COMANDOS DE MONITOREO AVANZADO
-# ===========================================
-
-# Monitorear métricas en tiempo real
-tail -f logs/ppo_v1/BTCUSDT_metrics.jsonl
-# Descripción: Monitorea las métricas de entrenamiento en tiempo real
-
-# Ver logs de runs
-tail -f models/BTCUSDT/BTCUSDT_runs.jsonl
-# Descripción: Monitorea los logs de runs en tiempo real
-
-# Ver logs de estrategias
-tail -f models/BTCUSDT/BTCUSDT_strategies_provisional.jsonl
-# Descripción: Monitorea los logs de estrategias en tiempo real
-
-# ===========================================
-# 13. COMANDOS DE ANÁLISIS DE LOGS
-# ===========================================
-
-# Analizar logs con jq (requiere jq instalado)
-cat models/BTCUSDT/BTCUSDT_runs.jsonl | jq '.win_rate_trades, .profit_factor'
-# Descripción: Extrae métricas específicas de los logs de runs
-
-# Filtrar runs por fecha
-cat models/BTCUSDT/BTCUSDT_runs.jsonl | jq 'select(.ts_start_utc | startswith("2025-09-04"))'
-# Descripción: Filtra runs por fecha específica usando timestamps UTC
-
-# Contar trades por tipo
-cat models/BTCUSDT/BTCUSDT_strategies_provisional.jsonl | jq '.kind' | sort | uniq -c
-# Descripción: Cuenta los diferentes tipos de eventos de trading
-
-# ===========================================
-# 14. COMANDOS DE MANTENIMIENTO
-# ===========================================
-
-# Limpiar archivos temporales
-rm -rf __pycache__/
-find . -name "*.pyc" -delete
-# Descripción: Limpia archivos temporales de Python
-
+### **Limpieza del Sistema**
+```bash
 # Limpiar logs antiguos
-find logs/ -name "*.log" -mtime +7 -delete
-# Descripción: Elimina logs más antiguos de 7 días
+python -c "
+import os
+import shutil
+if os.path.exists('logs/test_logs'):
+    shutil.rmtree('logs/test_logs')
+    print('✅ Logs de prueba eliminados')
+"
 
 # Limpiar modelos temporales
-rm -rf models/*/tmp/
-# Descripción: Elimina modelos temporales
+python -c "
+import os
+import shutil
+if os.path.exists('models/tmp'):
+    shutil.rmtree('models/tmp')
+    print('✅ Modelos temporales eliminados')
+"
+```
 
-# ===========================================
-# 15. COMANDOS DE BACKUP Y RESTAURACIÓN
-# ===========================================
+## 🔍 **COMANDOS DE DEBUGGING**
 
-# Crear backup de modelos
-tar -czf backup_models_$(date +%Y%m%d).tar.gz models/
-# Descripción: Crea backup comprimido de todos los modelos
+### **Diagnóstico del Sistema**
+```bash
+# Verificar estado general del sistema
+python -c "
+import sys
+import os
+print(f'Python: {sys.version}')
+print(f'Directorio actual: {os.getcwd()}')
+print(f'Archivos en raíz: {len([f for f in os.listdir(\".\") if os.path.isfile(f)])}')
+"
 
-# Crear backup de configuraciones
-tar -czf backup_config_$(date +%Y%m%d).tar.gz config/
-# Descripción: Crea backup comprimido de todas las configuraciones
+# Verificar dependencias críticas
+python -c "
+try:
+    import torch
+    print(f'✅ PyTorch: {torch.__version__}')
+except ImportError:
+    print('❌ PyTorch no instalado')
 
-# Crear backup de datos
-tar -czf backup_data_$(date +%Y%m%d).tar.gz data/
-# Descripción: Crea backup comprimido de todos los datos
+try:
+    import stable_baselines3
+    print(f'✅ SB3: {stable_baselines3.__version__}')
+except ImportError:
+    print('❌ Stable-Baselines3 no instalado')
+"
+```
 
-# ===========================================
-# NOTAS IMPORTANTES
-# ===========================================
+## 📈 **COMANDOS DE ANÁLISIS**
 
-# 1. Siempre activar el entorno virtual antes de ejecutar comandos
-# 2. Los comandos de PowerShell (.ps1) son específicos para Windows
-# 3. Los comandos con jq requieren tener jq instalado
-# 4. Los comandos de backup usan tar (disponible en Linux/Mac/WSL)
-# 5. Ajustar las rutas según tu sistema operativo
-# 6. Verificar que todas las dependencias estén instaladas
-# 7. Los logs con timestamps UTC son legibles directamente
-# 8. Usar Ctrl+C para interrumpir procesos en ejecución
+### **Análisis de Rendimiento**
+```bash
+# Analizar resultados de validación
+python -c "
+import json
+with open('archive/validation_results.json', 'r') as f:
+    results = json.load(f)
+print(f'Tests totales: {results[\"summary\"][\"total_tests\"]}')
+print(f'Tests exitosos: {results[\"summary\"][\"passed_tests\"]}')
+print(f'Tasa de éxito: {results[\"summary\"][\"success_rate\"]:.1f}%')
+"
+```
 
-# ===========================================
-# FLUJO DE TRABAJO RECOMENDADO
-# ===========================================
+## 🚨 **COMANDOS DE EMERGENCIA**
 
-# 1. Configurar entorno:
-#    venv\Scripts\activate
-#    pip install -r requirements.txt
+### **Recuperación del Sistema**
+```bash
+# Reset completo del sistema
+python -c "
+import os
+import shutil
+# Limpiar logs
+if os.path.exists('logs'):
+    shutil.rmtree('logs')
+    os.makedirs('logs')
+# Limpiar modelos temporales
+if os.path.exists('models/tmp'):
+    shutil.rmtree('models/tmp')
+print('✅ Sistema reseteado')
+"
 
-# 2. Descargar datos:
-#    python data_pipeline/scripts/download_history.py
-#    python data_pipeline/scripts/validate_history.py
+# Verificar integridad de archivos críticos
+python -c "
+import os
+critical_files = [
+    'app.py',
+    'requirements.txt',
+    'config/settings.yaml',
+    'config/train.yaml',
+    'base_env/base_env.py'
+]
+for file in critical_files:
+    if os.path.exists(file):
+        print(f'✅ {file}')
+    else:
+        print(f'❌ {file} FALTANTE')
+"
+```
 
-# 3. Entrenar modelo:
-#    python app.py run
+## 🎯 **COMANDOS RÁPIDOS**
 
-# 4. Monitorear progreso:
-#    python scripts/watch_progress.py
+### **Inicio Rápido**
+```bash
+# Validar y entrenar en un comando
+python scripts/clean_yaml_duplicates.py && python scripts/validate_rewards_system.py && python scripts/train_ppo.py
 
-# 5. Analizar resultados:
-#    python scripts/check_best_run.py
+# Modo autonomía completo
+python scripts/example_autonomous_mode.py
 
-# 6. Ejecutar backtest:
-#    python scripts/backtest_smoke_from_aligned.py
+# Benchmark completo
+python scripts/benchmark_rewards.py
+```
+
+### **Comandos de Desarrollo**
+```bash
+# Test rápido del sistema
+python -c "
+from base_env.base_env import BaseTradingEnv
+from config.config_loader import load_config
+print('✅ Sistema funcionando correctamente')
+"
+
+# Verificar optimizaciones
+python -c "
+from base_env.actions.rewards_utils import get_all_utils
+utils = get_all_utils()
+print(f'✅ {len(utils)} utilidades cargadas')
+"
+```
+
+---
+
+## 📚 **NOTAS IMPORTANTES**
+
+1. **Siempre validar** la configuración antes de entrenar
+2. **Usar modo autonomía** para máxima flexibilidad
+3. **Monitorear el rendimiento** durante entrenamientos largos
+4. **Hacer backup** de configuraciones importantes
+5. **Revisar logs** en caso de problemas
+
+## 🆘 **SOPORTE**
+
+Si encuentras problemas:
+1. Ejecutar comandos de validación
+2. Revisar logs en `logs/`
+3. Verificar configuración en `config/`
+4. Consultar documentación en `docs_backup/`
+
+---
+
+**Sistema optimizado para 50M steps con modo autonomía total** 🚀

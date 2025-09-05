@@ -76,7 +76,7 @@ class ConfigLoader:
         )
         
         bankruptcy = BankruptcyConfig(
-            enabled=bankruptcy_data.get("enabled", True),
+            enabled=bankruptcy_data.get("enabled", False),  # Cambiado de True a False
             threshold_pct=bankruptcy_data.get("threshold_pct", 20.0),
             penalty_reward=bankruptcy_data.get("penalty_reward", -10.0),
             mode=bankruptcy_data.get("mode", "end"),
@@ -226,8 +226,9 @@ class ConfigLoader:
         hier = self.load_hierarchical_config()
         print(f"🏗️  Análisis jerárquico:")
         print(f"   - Min confidence: {hier.min_confidence}")
-        print(f"   - Execute TFs: {hier.execute_tfs}")
+        print(f"   - Trend TFs: {hier.direction_tfs}")
         print(f"   - Confirm TFs: {hier.confirm_tfs}")
+        print(f"   - Execute TFs: {hier.execute_tfs}")
         
         print("=" * 50)
     

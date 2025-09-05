@@ -4,7 +4,7 @@ log_dir: "logs/ppo_v1"
 data:
   root: "data"
   stage: "aligned"
-  tfs: ["1m","5m","15m","1h"]
+  tfs: ["1m","5m","15m","1h","4h"]
   months_back: 36
 
 env:
@@ -21,16 +21,16 @@ env:
   target_balance: 1000000.0
 
 ppo:
-  total_timesteps: 50000000  # ← CORREGIDO: 50M steps para entrenamiento largo
+  total_timesteps: 1000000  # ← AUMENTADO: 1M steps para entrenamiento más largo
   n_steps: 2048
-  batch_size: 4096  # ← AJUSTADO: Si 8 envs consume mucha RAM, usar 4096
-  learning_rate: 3.0e-4      # ✅ Learning rate inicial
-  gamma: 0.999               # ✅ Descuento alto para largo plazo
+  batch_size: 2048  # ← REDUCIDO: Para mejor estabilidad
+  learning_rate: 2.0e-4      # ← REDUCIDO: Learning rate más conservador
+  gamma: 0.995               # ← AJUSTADO: Descuento ligeramente menor
   gae_lambda: 0.95           # ✅ GAE estable
-  clip_range: 0.3            # ← AUMENTADO: Menos restrictivo para más exploración
-  ent_coef: 0.02             # ← AUMENTADO: Más entropía para fomentar exploración inicial
+  clip_range: 0.2            # ← REDUCIDO: Más restrictivo para estabilidad
+  ent_coef: 0.01             # ← REDUCIDO: Menos entropía para convergencia
   vf_coef: 0.5               # ✅ Valor function
-  n_epochs: 4                # ✅ Epochs estándar
+  n_epochs: 6                # ← AUMENTADO: Más epochs para mejor aprendizaje
   tensorboard_log: "logs/tb"
   
   # ← NUEVO: Learning rate annealing activo

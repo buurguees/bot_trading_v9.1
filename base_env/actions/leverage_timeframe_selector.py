@@ -26,10 +26,10 @@ class LeverageTimeframeSelector:
         self.available_leverages = available_leverages
         self.available_timeframes = available_timeframes
         self.symbol_config = symbol_config
-        self.leverage_config = symbol_config.get("leverage", {})
+        self.leverage_config = symbol_config.get("leverage", {}) or {}
         
         # Configuración de leverage (manejar tanto dict como objeto)
-        if hasattr(self.leverage_config, 'min'):
+        if self.leverage_config and hasattr(self.leverage_config, 'min'):
             # Es un objeto dataclass
             self.min_leverage = getattr(self.leverage_config, 'min', 2.0)
             self.max_leverage = getattr(self.leverage_config, 'max', 25.0)

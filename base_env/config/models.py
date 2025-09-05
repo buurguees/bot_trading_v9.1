@@ -64,6 +64,7 @@ class DefaultLevelsConfig:
     sl_atr_mult: float = 1.0
     min_sl_pct: float = 1.0
     tp_r_multiple: float = 1.5
+    ttl_bars_default: int = 180
 
 @dataclass
 class RiskCommon:

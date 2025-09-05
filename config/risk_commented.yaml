@@ -1,0 +1,65 @@
+# config/risk.yaml - CON VALORES CONSERVADOR/DURO/BLANDO
+# Descripción: Parámetros de gestión de riesgo autónoma (comunes, spot y futuros).
+# La consume base_env/risk para sizing, exposición, apalancamiento, circuit breakers y quiebras.
+
+common:
+  daily_max_drawdown_pct: 10.0        # CONSERVADOR: 2.0 | DURO: 1.0 | BLANDO: 10.0
+  exposure_max_abs: 1.5               # CONSERVADOR: 0.5 | DURO: 0.3 | BLANDO: 1.5
+  circuit_breakers:
+    data_quality_pause: true         # CONSERVADOR: true | DURO: true | BLANDO: false
+    inconsistent_signals_pause: true # CONSERVADOR: true | DURO: true | BLANDO: false
+
+  bankruptcy:
+    enabled: false                   # CONSERVADOR: true | DURO: true | BLANDO: false
+    threshold_pct: 2.0               # CONSERVADOR: 10.0 | DURO: 20.0 | BLANDO: 2.0
+    penalty_reward: -0.5             # CONSERVADOR: -5.0 | DURO: -10.0 | BLANDO: -0.5
+    mode: "soft_reset"               # CONSERVADOR: "soft_reset" | DURO: "hard_reset" | BLANDO: "soft_reset"
+    restart_on_bankruptcy: false     # CONSERVADOR: false | DURO: true | BLANDO: false
+    soft_reset:
+      max_resets_per_run: 5          # CONSERVADOR: 1 | DURO: 0 | BLANDO: 5
+      post_reset_leverage_cap: 3.0   # CONSERVADOR: 1.5 | DURO: 1.0 | BLANDO: 3.0
+      cooldown_bars: 10              # CONSERVADOR: 60 | DURO: 120 | BLANDO: 10
+      label_segment: true            # CONSERVADOR: true | DURO: true | BLANDO: false
+
+  # Niveles por defecto para SL/TP
+  default_levels:
+    use_atr: false                   # CONSERVADOR: true | DURO: true | BLANDO: false
+    atr_period: 10                   # CONSERVADOR: 20 | DURO: 30 | BLANDO: 10
+    sl_atr_mult: 0.8                 # CONSERVADOR: 1.5 | DURO: 2.0 | BLANDO: 0.8
+    min_sl_pct: 0.5                  # CONSERVADOR: 2.0 | DURO: 3.0 | BLANDO: 0.5
+    tp_r_multiple: 1.2               # CONSERVADOR: 2.0 | DURO: 3.0 | BLANDO: 1.2
+    ttl_bars_default: 30             # CONSERVADOR: 120 | DURO: 240 | BLANDO: 30
+  
+  # Configuración para forzar minNotional en entrenamiento
+  train_force_min_notional: true     # CONSERVADOR: true | DURO: true | BLANDO: false
+  # Permitir fallback de niveles en TRAIN (no LIVE)
+  allow_open_without_levels_train: true # CONSERVADOR: false | DURO: false | BLANDO: true
+  # Fallback de ATR configurable
+  atr_fallback:
+    enabled: true                    # CONSERVADOR: true | DURO: true | BLANDO: false
+    tf: "1m"                         # CONSERVADOR: "5m" | DURO: "15m" | BLANDO: "1m"
+    lookback: 10                     # CONSERVADOR: 20 | DURO: 30 | BLANDO: 10
+    min_sl_atr_mult: 1.0            # CONSERVADOR: 1.5 | DURO: 2.0 | BLANDO: 1.0
+
+# Configuración de runtime
+runtime:
+  dedup_window_bars: 1              # CONSERVADOR: 3 | DURO: 5 | BLANDO: 1
+  bankruptcy_min_equity: 5.0       # CONSERVADOR: 50.0 | DURO: 100.0 | BLANDO: 5.0
+  drift_corrector:
+    enabled: true                    # CONSERVADOR: true | DURO: true | BLANDO: false
+    max_repair_pct: 0.01             # CONSERVADOR: 0.002 | DURO: 0.001 | BLANDO: 0.01
+    abs_cap: 10.0                    # CONSERVADOR: 2.0 | DURO: 1.0 | BLANDO: 10.0
+
+spot:
+  risk_pct_per_trade: 10.0            # CONSERVADOR: 1.0 | DURO: 0.5 | BLANDO: 2.0
+  trailing:
+    enabled: false                     # CONSERVADOR: true | DURO: true | BLANDO: false
+    atr_multiple: 0.8                 # CONSERVADOR: 1.5 | DURO: 2.0 | BLANDO: 0.8
+
+futures:
+  max_initial_leverage: 5             # CONSERVADOR: 2 | DURO: 1 | BLANDO: 5
+  risk_pct_per_trade: 10.0            # CONSERVADOR: 1.0 | DURO: 0.5 | BLANDO: 2.0
+  margin_buffer_pct: 20.0             # CONSERVADOR: 20.0 | DURO: 30.0 | BLANDO: 5.0
+  trailing:
+    enabled: false                     # CONSERVADOR: true | DURO: true | BLANDO: false
+    atr_multiple: 1.0                 # CONSERVADOR: 1.5 | DURO: 2.0 | BLANDO: 0.8

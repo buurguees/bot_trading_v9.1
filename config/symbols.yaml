@@ -18,7 +18,7 @@ symbols:
   - symbol: BTCUSDT
     mode: train_futures
     history_years: 5
-    enabled_tfs: ["1m","5m","15m","1h"]
+    enabled_tfs: ["1m","5m","15m","1h","4h"]
     allow_shorts: true
     filters:
       tickSize: 0.1

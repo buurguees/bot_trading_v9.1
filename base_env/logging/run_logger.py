@@ -42,6 +42,9 @@ class RunLogger:
         # ← NUEVO: Resetear métricas de trades para el nuevo run
         self._trade_metrics.reset()
         
+        import os
+        import uuid
+        
         self._active = {
             "symbol": self.symbol,
             "market": market,
@@ -63,6 +66,9 @@ class RunLogger:
             # ← NUEVO: Control de segmentos para soft reset
             "segment_id": int(segment_id),
             "soft_reset_count": 0,
+            # ← NUEVO: Identificadores únicos para deduplicación
+            "env_id": int(os.getenv("VEC_ENV_ID", -1)),
+            "uuid": str(uuid.uuid4()),
         }
 
     def update_trades_count(self, count: int):
@@ -119,83 +125,54 @@ class RunLogger:
         self._trade_metrics.add_trade(trade)
 
     def finish(self, final_balance: float, final_equity: float, ts_end: int, bankruptcy: bool = False, penalty_reward: float = 0.0, soft_reset: bool = False, reset_count: int = 0):
-        if not self._active:
-            print("WARNING: RunLogger.finish() llamado sin run activo")
-            return
+        """
+        Finaliza el run activo de forma robusta. Nunca mata el worker por logging.
+        """
+        try:
+            if not self._active:
+                print("WARNING: RunLogger.finish() llamado sin run activo")
+                return
 
-        # ← NUEVO: Validación de datos para prevenir duplicados
-        if self._active.get("ts_end") is not None:
-            print(f"🚫 Run ya finalizado, ignorando finish() duplicado")
-            return
+            # ← NUEVO: Validación de datos para prevenir duplicados
+            if self._active.get("ts_end") is not None:
+                print(f"🚫 Run ya finalizado, ignorando finish() duplicado")
+                return
 
-        # ← NUEVO: Validación mejorada de episodios vacíos
-        trades_count = self._active.get("trades_count", 0)
-        elapsed_steps = self._active.get("elapsed_steps", 0)
-        reasons_counter = self._active.get("reasons_counter", {})
-        
-        # ← CORREGIDO: Guardar todos los runs, incluso con pocos pasos
-        # Los runs cortos también proporcionan información valiosa sobre el aprendizaje
-        if trades_count == 0 and elapsed_steps < 10:  # Umbral reducido a 10 pasos
-            print(f"📊 Run corto sin trades - GUARDANDO para análisis:")
-            print(f"   - Trades: {trades_count}")
-            print(f"   - Pasos: {elapsed_steps}")
-            print(f"   - Razones: {reasons_counter}")
-            # NO retornar - continuar con el guardado del run
+            # Actualizar datos finales
+            self._active.update({
+                "final_balance": self._safe_float(final_balance),
+                "final_equity": self._safe_float(final_equity),
+                "ts_end": int(ts_end),
+                "bankruptcy": bool(bankruptcy),
+                "penalty_reward": self._safe_float(penalty_reward),
+                "soft_reset": bool(soft_reset),
+                "soft_reset_count": int(reset_count),
+                "hit_target": final_balance >= self._active.get("target_balance", 0),
+            })
 
-        # ← NUEVO: Validación de episodios demasiado cortos
-        ts_start = self._active.get("ts_start", 0)
-        if ts_end - ts_start < 1000:  # Menos de 1 segundo
-            print(f"🚫 Episodio demasiado corto ({ts_end - ts_start}ms) - NO se loguea")
-            print(f"   - Trades: {trades_count}, Pasos: {elapsed_steps}")
+            # Calcular métricas profesionales de trades
+            trade_metrics = self._trade_metrics.calculate_metrics()
+            self._active.update(trade_metrics)
+            
+            # información de quiebra y soft reset
+            if soft_reset:
+                self._active["run_result"] = "SOFT_RESET"
+            elif bankruptcy:
+                self._active["drawdown_pct"] = ((final_equity - self._active.get("initial_equity", 0)) / max(self._active.get("initial_equity", 1), 1)) * 100.0
+                self._active["run_result"] = "BANKRUPTCY"
+            else:
+                self._active["run_result"] = "COMPLETED" if self._active["hit_target"] else "INCOMPLETE"
+
+            # 1) persiste primero
+            self._add_run_with_rotation(self._active)
+            # 2) luego recalcula progreso con el run activo incluido
+            self._update_progress(self._active)
+
+        except Exception as e:
+            # jamas matar el worker por logging
+            print(f"[RunLogger.finish] fallo no fatal: {e}")
+        finally:
             self._active = None
-            return
-
-        # ← CORREGIDO: Guardar todos los runs, incluso sin trades
-        # Los runs sin trades son válidos y proporcionan información valiosa sobre el aprendizaje
-        if trades_count == 0:
-            initial_balance = self._active.get("initial_balance", 0.0)
-            if abs(final_balance - initial_balance) < 0.01 and abs(final_equity - initial_balance) < 0.01:
-                print(f"📊 Run sin trades (balance/equity sin cambios) - GUARDANDO para análisis")
-                print(f"   - Trades: {trades_count}, Pasos: {elapsed_steps}")
-                print(f"   - Razones: {reasons_counter}")
-                # NO retornar - continuar con el guardado del run
-
-        self._active["final_balance"] = float(final_balance)
-        self._active["final_equity"] = float(final_equity)
-        self._active["ts_end"] = int(ts_end)
-        self._active["hit_target"] = final_balance >= self._active["target_balance"]
-        
-        # ← NUEVO: Calcular métricas profesionales de trades
-        trade_metrics = self._trade_metrics.calculate_metrics()
-        self._active.update(trade_metrics)
-        
-        # ← NUEVO: información de quiebra y soft reset
-        self._active["bankruptcy"] = bankruptcy
-        self._active["soft_reset"] = soft_reset
-        if soft_reset:
-            self._active["soft_reset_count"] = reset_count
-            self._active["run_result"] = "SOFT_RESET"
-        elif bankruptcy:
-            self._active["penalty_reward"] = float(penalty_reward)
-            self._active["drawdown_pct"] = ((final_equity - self._active["initial_equity"]) / self._active["initial_equity"]) * 100.0
-            self._active["run_result"] = "BANKRUPTCY"
-        else:
-            self._active["run_result"] = "COMPLETED" if self._active["hit_target"] else "INCOMPLETE"
-
-        # ← NUEVO: Filtro de calidad - no loguear runs con balance muy negativo
-        if final_balance < -90000.0:
-            print(f"🚫 Run descartado: balance {final_balance:.2f} < -90,000 (muy negativo)")
-            self._active = None
-            return
-
-        # ← NUEVO: Sistema de rotación FIFO con límite configurable
-        self._add_run_with_rotation(self._active)
-
-        # Actualizar snapshot maestro
-        self._update_progress(self._active)
-
-        # reset
-        self._active = None
 
     def _add_run_with_rotation(self, run_data: Dict[str, Any]):
         """Añade un nuevo run con rotación FIFO, manteniendo máximo configurable de runs"""
@@ -242,8 +219,19 @@ class RunLogger:
         print(f"OK Run añadido: balance {run_data['final_balance']:.2f}, equity {run_data['final_equity']:.2f}")
         print(f"   Total runs en archivo: {len(existing_runs)}/{MAX_RUNS}")
     
+    def _run_key(self, r: dict) -> tuple:
+        """Genera clave única para deduplicación usando (start_ts, env_id, uuid)"""
+        import os
+        import uuid
+        
+        return (
+            int(r.get("start_ts", 0)),
+            str(r.get("env_id", os.getpid() % 100000)),
+            str(r.get("uuid", "")),
+        )
+
     def _is_duplicate_run(self, new_run: Dict[str, Any]) -> bool:
-        """← NUEVO: Detecta si un run es duplicado con lógica anti-congelamiento mejorada"""
+        """← NUEVO: Detecta si un run es duplicado usando clave robusta"""
         if not self.runs_file.exists():
             return False
         
@@ -261,10 +249,19 @@ class RunLogger:
             if not recent_runs:
                 return False
             
-            # Criterios de duplicación ANTI-CONGELAMIENTO
+            # Usar clave robusta para deduplicación
+            new_key = self._run_key(new_run)
+            
+            # Verificar duplicados por clave
+            for existing_run in recent_runs:
+                existing_key = self._run_key(existing_run)
+                if new_key == existing_key:
+                    print(f"🚫 Run duplicado detectado - NO se añade: Clave {new_key}")
+                    return True
+            
+            # Criterios adicionales de duplicación por contenido
             new_balance = float(new_run.get("final_balance", 0.0))
             new_equity = float(new_run.get("final_equity", 0.0))
-            new_ts = int(new_run.get("ts_end", 0))
             
             # 1. 🚨 DETECCIÓN DE CONGELAMIENTO: Múltiples runs idénticos
             identical_count = 0
@@ -275,16 +272,10 @@ class RunLogger:
                 if abs(new_balance - existing_balance) < 0.001 and abs(new_equity - existing_equity) < 0.001:
                     identical_count += 1
             
-            # Si hay más de 3 runs idénticos → CONGELAMIENTO detectado
-            if identical_count >= 3:
+            # Si hay más de 5 runs idénticos → CONGELAMIENTO detectado (menos estricto)
+            if identical_count >= 5:
                 print(f"🚨 CONGELAMIENTO DETECTADO: {identical_count} runs idénticos - NO se loguea")
                 return True
-            
-            # 2. 🔍 DETECCIÓN DE DUPLICADOS EXACTOS
-            for existing_run in recent_runs:
-                existing_balance = float(existing_run.get("final_balance", 0.0))
-                existing_equity = float(existing_run.get("final_equity", 0.0))
-                existing_ts = int(existing_run.get("ts_end", 0))
                 
                 # Balance y equity EXACTAMENTE idénticos
                 if abs(new_balance - existing_balance) < 0.001 and abs(new_equity - existing_equity) < 0.001:
@@ -335,24 +326,57 @@ class RunLogger:
         print(f"🧹 Limpieza aplicada: eliminados {runs_to_remove} runs antiguos")
         print(f"   Archivo ahora contiene: {len(existing_runs)}/{MAX_RUNS} runs más recientes")
 
-    def _update_progress(self, last_run: Dict[str, Any]):
-        runs = []
-        if self.runs_file.exists():
-            with self.runs_file.open("r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        runs.append(json.loads(line))
-                    except Exception:
-                        continue
+    def _safe_float(self, x, default=0.0):
+        """Convierte a float de forma segura con valor por defecto"""
+        try:
+            return float(x)
+        except Exception:
+            return default
 
-        total_runs = len(runs)
-        best_equity = max(r.get("final_equity", 0) for r in runs if r.get("final_equity") is not None)
-        best_balance = max(r.get("final_balance", 0) for r in runs if r.get("final_balance") is not None)
+    def _update_progress(self, last_run: Dict[str, Any]):
+        """
+        Recalcula progreso global. Tolerante a archivo vacío o sin 'final_equity'.
+        """
+        try:
+            runs = []
+            if self.runs_file.exists():
+                with self.runs_file.open("r", encoding="utf-8") as f:
+                    for line in f:
+                        try:
+                            runs.append(json.loads(line))
+                        except Exception:
+                            continue
+        except Exception:
+            runs = []
+
+        # si nos pasan el run activo, lo incluimos/actualizamos en memoria antes de calcular
+        if last_run:
+            runs = runs + [last_run]
+
+        if not runs:
+            self._progress = {
+                "best_equity": 0.0,
+                "best_balance": 0.0,
+                "count": 0,
+            }
+            return
+
+        final_equities = [
+            self._safe_float(r.get("final_equity"), None)
+            for r in runs if r.get("final_equity") is not None
+        ]
+        final_balances = [
+            self._safe_float(r.get("final_balance"), None)
+            for r in runs if r.get("final_balance") is not None
+        ]
+
+        best_equity = max(final_equities, default=0.0)
+        best_balance = max(final_balances, default=0.0)
         last = runs[-1] if runs else {}
 
         progress = {
             "symbol": self.symbol,
-            "runs_completed": total_runs,
+            "runs_completed": len(runs),
             "best_equity": best_equity,
             "best_balance": best_balance,
             "last_run": last,

@@ -311,8 +311,22 @@ def _execute_training(symbol_config: Dict[str, Any], configs: Dict[str, Any]):
     os.environ["TRAINING_MODE"] = symbol_config["mode"]
     os.environ["TRAINING_MARKET"] = symbol_config["market"]
     
+    # ← NUEVO: Reparar/Inicializar archivos de modelos antes de entrenar
+    typer.echo(f"🧹 Preparando archivos de modelos para {symbol}...")
+    try:
+        from scripts.repair_models import repair_models
+        repair_success = repair_models(symbol, verbose=True)
+        if repair_success:
+            typer.echo(f"✅ Archivos de {symbol} preparados exitosamente")
+        else:
+            typer.echo(f"⚠️  No se pudieron reparar los archivos de {symbol}")
+            typer.echo("   Continuando con inicialización...")
+    except Exception as e:
+        typer.echo(f"⚠️  Error en preparación de {symbol}: {e}")
+        typer.echo("   Continuando con inicialización...")
+    
     # Ejecutar entrenamiento
-    from scripts.train_ppo import main as train_main
+    from train_env.scripts.train_ppo import main as train_main
     train_main()
 
 @app.command()

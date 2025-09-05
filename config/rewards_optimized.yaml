@@ -1,0 +1,155 @@
+# config/rewards_optimized.yaml
+# Configuración optimizada para el sistema de rewards/penalties.
+#
+# Esta configuración está diseñada para entrenamientos de 50M steps con:
+# - Clipping dinámico y normalización global
+# - Curriculum learning para diferentes etapas
+# - Profiling de rendimiento habilitado
+# - Procesamiento por lotes para entornos vectorizados
+
+# Configuración global del sistema de rewards
+global_reward_config:
+  # Clipping dinámico
+  initial_clip_range: [-10.0, 10.0]
+  adaptive_clipping: true
+  clip_std_multiplier: 3.0
+  
+  # Normalización
+  enable_normalization: true
+  normalization_window: 1000
+  target_reward_std: 1.0
+  
+  # Decay schedules globales
+  global_decay_start: 10000000  # 10M steps
+  global_decay_end: 50000000    # 50M steps
+  exploration_decay_rate: 0.1
+  
+  # Profiling
+  enable_profiling: true
+  profile_interval: 100000  # Cada 100K steps
+  
+  # Curriculum learning
+  enable_curriculum: true
+  curriculum_stages:
+    - name: "initial_exploration"
+      start_step: 0
+      end_step: 5000000
+      modules:
+        exploration_bonus:
+          enabled: true
+          weight: 0.1
+          decay_alpha: 3.0
+        bankruptcy_penalty:
+          enabled: true
+          weight: 1.0
+        inactivity_penalty:
+          enabled: false  # Deshabilitado en etapa inicial
+    
+    - name: "balanced_learning"
+      start_step: 5000000
+      end_step: 20000000
+      modules:
+        exploration_bonus:
+          enabled: true
+          weight: 0.05
+          decay_alpha: 5.0
+        bankruptcy_penalty:
+          enabled: true
+          weight: 1.0
+        inactivity_penalty:
+          enabled: true
+          weight: 0.5
+        holding_reward:
+          enabled: true
+          weight: 0.3
+    
+    - name: "convergence"
+      start_step: 20000000
+      end_step: 50000000
+      modules:
+        exploration_bonus:
+          enabled: true
+          weight: 0.01  # Muy reducido
+          decay_alpha: 10.0
+        bankruptcy_penalty:
+          enabled: true
+          weight: 1.0
+        inactivity_penalty:
+          enabled: true
+          weight: 1.0  # Aumentado
+        holding_reward:
+          enabled: true
+          weight: 0.5  # Aumentado
+  
+  # Batch processing
+  enable_batch_processing: true
+  batch_size_threshold: 4
+
+# Configuración específica de módulos
+exploration_bonus:
+  enabled: true
+  weight: 0.05
+  decay_alpha: 5.0
+  per_trade_cap: 0.1
+  global_decay_enabled: true
+  memory_limit: 10000
+
+bankruptcy_penalty:
+  enabled: true
+  weight: 1.0
+  bankruptcy_penalty: -10.0
+  survival_bonus: 0.001
+  survival_bonus_scale: "log"  # log, linear, sqrt
+
+inactivity_penalty:
+  enabled: true
+  weight: 0.5
+  penalty_per_block: -0.1
+  max_penalty: -2.0
+  interval_blocks: 100
+
+holding_reward:
+  enabled: true
+  weight: 0.3
+  reward_per_bar: 0.01
+  max_reward: 1.0
+  min_equity: 0.0
+
+execution_cost_penalty:
+  enabled: true
+  weight: 0.2
+  fee_penalty_multiplier: 1.0
+  slippage_penalty_multiplier: 1.0
+  per_trade_cap: 0.5
+
+drawdown_penalty:
+  enabled: true
+  weight: 0.4
+  penalty_per_pct: -0.1
+  max_penalty: -5.0
+  threshold_pct: 5.0
+
+duration_reward:
+  enabled: true
+  weight: 0.2
+  min_bars: 2
+  max_bars: 20
+  reward_per_bar: 0.05
+  scalping_penalty: -0.2
+
+# Configuración de logging
+logging:
+  level: INFO
+  enable_profiling: true
+  log_interval: 10000
+  save_stats: true
+  stats_file: "logs/reward_stats.json"
+
+# Configuración de optimización
+optimization:
+  enable_caching: true
+  cache_ttl: 300.0
+  enable_vectorization: true
+  enable_batch_processing: true
+  memory_limit_mb: 1024
+  cleanup_interval: 1000000  # Cada 1M steps

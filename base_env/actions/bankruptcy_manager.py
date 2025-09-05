@@ -22,6 +22,12 @@ class BankruptcyManager:
 		Devuelve (obs, reward, done, info)
 		"""
 		env = self.env
+		
+		# Solo marcar BANKRUPTCY si equity <= bankruptcy threshold
+		bankruptcy_threshold = env._init_cash * (env.cfg.risk.common.bankruptcy.threshold_pct / 100.0)
+		if env.portfolio.equity_quote > bankruptcy_threshold:
+			return obs, reward, False, {"event": "HOLD"}  # no terminar
+		
 		env._bankruptcy_detected = True
 		penalty_reward = float(env.cfg.risk.common.bankruptcy.penalty_reward)
 		reward += penalty_reward
@@ -33,6 +39,24 @@ class BankruptcyManager:
 
 		if mode == "end":
 			# Terminar episodio
+			try:
+				env._run_logger.finish(
+					final_balance=env.portfolio.cash_quote,
+					final_equity=env.portfolio.equity_quote,
+					ts_end=ts_now,
+					bankruptcy=True,
+					penalty_reward=penalty_reward
+				)
+			except Exception as e:
+				if hasattr(env, 'logger') and env.logger:
+					env.logger.warning(f"[Bankruptcy] RunLogger.finish falló (no fatal): {e}")
+			return obs, reward, True, {"done_reason": "BANKRUPTCY", "bankruptcy": True, "penalty_reward": penalty_reward}
+
+		if mode == "soft_reset":
+			return self._soft_reset(penalty_reward, ts_now, obs)
+
+		# Fallback a END
+		try:
 			env._run_logger.finish(
 				final_balance=env.portfolio.cash_quote,
 				final_equity=env.portfolio.equity_quote,
@@ -40,19 +64,9 @@ class BankruptcyManager:
 				bankruptcy=True,
 				penalty_reward=penalty_reward
 			)
-			return obs, reward, True, {"done_reason": "BANKRUPTCY", "bankruptcy": True, "penalty_reward": penalty_reward}
-
-		if mode == "soft_reset":
-			return self._soft_reset(penalty_reward, ts_now, obs)
-
-		# Fallback a END
-		env._run_logger.finish(
-			final_balance=env.portfolio.cash_quote,
-			final_equity=env.portfolio.equity_quote,
-			ts_end=ts_now,
-			bankruptcy=True,
-			penalty_reward=penalty_reward
-		)
+		except Exception as e:
+			if hasattr(env, 'logger') and env.logger:
+				env.logger.warning(f"[Bankruptcy] RunLogger.finish falló (no fatal): {e}")
 		return obs, reward, True, {"done_reason": "BANKRUPTCY", "bankruptcy": True, "penalty_reward": penalty_reward}
 
 	def _soft_reset(self, penalty_reward: float, ts_now: int, obs: Dict[str, Any]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
